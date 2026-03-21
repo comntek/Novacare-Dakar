@@ -1,0 +1,115 @@
+/** @type {import('tailwindcss').Config} */
+export default {
+  content: [
+    './index.html',
+    './src/**/*.{js,ts,jsx,tsx}',
+  ],
+  theme: {
+    extend: {
+      colors: {
+        primary: {
+          50:      '#F0F7F4',
+          100:     '#D6EDE4',
+          200:     '#AEDBC9',
+          300:     '#7DC2A8',
+          400:     '#4DA687',
+          DEFAULT: '#0A5C3E',
+          600:     '#094F35',
+          700:     '#07402B',
+          800:     '#053020',
+          900:     '#032015',
+        },
+        accent: {
+          50:      '#FDF6E9',
+          100:     '#FAEACC',
+          200:     '#F4D199',
+          300:     '#EDB966',
+          400:     '#D9A040',
+          DEFAULT: '#C9922A',
+          600:     '#A87520',
+          700:     '#865B18',
+          800:     '#644310',
+          900:     '#422C08',
+        },
+        neutral: {
+          bg:      '#F0F4F8',
+          card:    '#FFFFFF',
+          border:  '#E8ECF0',
+          subtle:  '#6B7280',
+          muted:   '#9CA3AF',
+          text:    '#1A1A2E',
+        },
+        success: {
+          50:      '#F0FDF4',
+          100:     '#DCFCE7',
+          DEFAULT: '#16A34A',
+          600:     '#15803D',
+        },
+        warning: {
+          50:      '#FFFBEB',
+          100:     '#FEF3C7',
+          DEFAULT: '#D97706',
+          600:     '#B45309',
+        },
+        danger: {
+          50:      '#FFF1F2',
+          100:     '#FFE4E6',
+          DEFAULT: '#E11D48',
+          600:     '#BE123C',
+        },
+        info: {
+          50:      '#EFF6FF',
+          100:     '#DBEAFE',
+          DEFAULT: '#2563EB',
+          600:     '#1D4ED8',
+        },
+      },
+      fontFamily: {
+        sans: ['Plus Jakarta Sans', 'system-ui', 'sans-serif'],
+        display: ['Plus Jakarta Sans', 'system-ui', 'sans-serif'],
+      },
+      fontSize: {
+        '2xs': '0.625rem',
+      },
+      borderRadius: {
+        '3xl': '1.5rem',
+        '4xl': '2rem',
+      },
+      boxShadow: {
+        // Neumorphisme doux
+        'neu':        '6px 6px 16px rgba(163,177,198,0.3), -4px -4px 12px rgba(255,255,255,0.9)',
+        'neu-sm':     '3px 3px 8px rgba(163,177,198,0.25), -2px -2px 6px rgba(255,255,255,0.8)',
+        'neu-inset':  'inset 3px 3px 8px rgba(163,177,198,0.3), inset -2px -2px 6px rgba(255,255,255,0.8)',
+        'neu-active': 'inset 4px 4px 10px rgba(163,177,198,0.35), inset -2px -2px 6px rgba(255,255,255,0.7)',
+        'card':       '0 2px 8px rgba(0,0,0,0.04), 0 0 1px rgba(0,0,0,0.04)',
+        'card-hover': '0 8px 24px rgba(10,92,62,0.10), 0 2px 8px rgba(0,0,0,0.04)',
+        'modal':      '0 24px 48px rgba(0,0,0,0.12)',
+        'sidebar':    '4px 0 24px rgba(0,0,0,0.06)',
+        'btn':        '0 2px 8px rgba(10,92,62,0.28)',
+        'kpi':        '8px 8px 20px rgba(163,177,198,0.35), -4px -4px 12px rgba(255,255,255,0.95)',
+      },
+      backgroundImage: {
+        'gradient-primary': 'linear-gradient(135deg, #0A5C3E 0%, #0D7A52 100%)',
+        'gradient-accent':  'linear-gradient(135deg, #C9922A 0%, #D9A040 100%)',
+        'gradient-card':    'linear-gradient(135deg, #FFFFFF 0%, #F8FAFC 100%)',
+        'gradient-neu':     'linear-gradient(145deg, #ffffff, #e8ecf0)',
+      },
+      animation: {
+        'fade-in':    'fadeIn 0.3s ease-out',
+        'slide-up':   'slideUp 0.3s ease-out',
+        'slide-in':   'slideIn 0.25s ease-out',
+        'pulse-dot':  'pulseDot 2s ease-in-out infinite',
+        'float':      'float 3s ease-in-out infinite',
+      },
+      keyframes: {
+        fadeIn:  { '0%': { opacity: '0' }, '100%': { opacity: '1' } },
+        slideUp: { '0%': { opacity: '0', transform: 'translateY(12px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } },
+        slideIn: { '0%': { opacity: '0', transform: 'translateX(-12px)' }, '100%': { opacity: '1', transform: 'translateX(0)' } },
+        pulseDot:{ '0%, 100%': { opacity: '1', transform: 'scale(1)' }, '50%': { opacity: '0.5', transform: 'scale(0.85)' } },
+        float:   { '0%, 100%': { transform: 'translateY(0px)' }, '50%': { transform: 'translateY(-4px)' } },
+      },
+      transitionDuration: { '250': '250ms' },
+    },
+  },
+  plugins: [],
+}
