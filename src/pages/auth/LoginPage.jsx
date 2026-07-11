@@ -1,14 +1,11 @@
 import { useState } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { Eye, EyeOff, Mail, Lock, ArrowLeft, AlertCircle } from "lucide-react";
-import { signInWithEmailAndPassword } from "firebase/auth";
-import { auth } from "../../services/firebase";
-import { getUtilisateurById } from "../../services/firestore";
-import { useAuthStore } from "../../store/authStore";
+import { useAuth } from "../../hooks/useAuth";
 
 export function LoginPage() {
   const navigate = useNavigate();
-  const { setUser } = useAuthStore();
+  const { login } = useAuth();
 
   const [form, setForm] = useState({ email: "", password: "" });
   const [showPwd, setShowPwd] = useState(false);
@@ -23,23 +20,10 @@ export function LoginPage() {
     setLoading(true);
     setErreur(null);
     try {
-      const cred = await signInWithEmailAndPassword(
-        auth,
-        form.email,
-        form.password,
-      );
-      const data = await getUtilisateurById(cred.user.uid);
-      if (!data) throw new Error("Utilisateur introuvable");
-      setUser({ ...data, uid: cred.user.uid });
-      const routes = {
-        admin: "/admin",
-        medecin: "/medecin",
-        secretaire: "/secretaire",
-        patient: "/patient",
-      };
-      navigate(routes[data.role] || "/");
+      const { redirect } = await login(form.email, form.password);
+      navigate(redirect);
     } catch (e) {
-      setErreur("Email ou mot de passe incorrect.");
+      setErreur(e.message || "Email ou mot de passe incorrect.");
     } finally {
       setLoading(false);
     }

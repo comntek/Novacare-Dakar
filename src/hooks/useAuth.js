@@ -1,23 +1,16 @@
 import { useEffect, useCallback, useRef } from 'react'
-import {
-  onAuthStateChanged,
-  signInWithEmailAndPassword,
-  signOut,
-  sendPasswordResetEmail,
-  updateProfile,
-} from 'firebase/auth'
-import {
-  doc,
-  getDoc,
-  setDoc,
-  updateDoc,
-  serverTimestamp,
-} from 'firebase/firestore'
-import { auth, db } from '../services/firebase'
+import { supabase } from '../services/supabase'
+import { getUtilisateurById } from '../services/firestore'
 import useAuthStore from '../store/authStore'
-import { ROLE_REDIRECT } from '../constants/roles'
 
 const INACTIVITY_TIMEOUT = 30 * 60 * 1000
+
+const ROUTES_PAR_ROLE = {
+  admin: '/admin',
+  medecin: '/medecin',
+  secretaire: '/secretaire',
+  patient: '/patient',
+}
 
 export function useAuth() {
   const store = useAuthStore()
@@ -27,45 +20,42 @@ export function useAuth() {
     if (inactivityRef.current) clearTimeout(inactivityRef.current)
     if (store.user) {
       inactivityRef.current = setTimeout(async () => {
-        await signOut(auth)
+        await supabase.auth.signOut()
       }, INACTIVITY_TIMEOUT)
     }
   }, [store.user])
 
+  // Écoute la session Supabase (remplace onAuthStateChanged de Firebase).
+  // Alimente useAuthStore.setUser, exactement comme le faisait App.jsx.
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      if (firebaseUser) {
-        try {
-          const userDoc = await getDoc(doc(db, 'utilisateurs', firebaseUser.uid))
-          const userData = userDoc.exists() ? userDoc.data() : null
-          const idTokenResult = await firebaseUser.getIdTokenResult()
-          const role =
-            idTokenResult.claims?.role || userData?.role || 'patient'
-          store.setAuthState({ user: firebaseUser, userData, role })
-        } catch (error) {
-          store.setAuthState({
-            user: firebaseUser,
-            userData: null,
-            role: 'patient',
-          })
-        }
-      } else {
-        store.clearAuth()
+    const loadProfile = async (sessionUser) => {
+      if (!sessionUser) {
+        store.setUser(null)
+        return
       }
+      try {
+        const data = await getUtilisateurById(sessionUser.id)
+        store.setUser(data ? { ...data, uid: sessionUser.id } : null)
+      } catch {
+        store.setUser(null)
+      }
+    }
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      loadProfile(session?.user ?? null)
     })
-    return () => unsubscribe()
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      loadProfile(session?.user ?? null)
+    })
+
+    return () => listener?.subscription?.unsubscribe()
   }, [])
 
+  // Déconnexion automatique après 30 min d'inactivité
   useEffect(() => {
     if (!store.user) return
-    const events = [
-      'mousedown',
-      'mousemove',
-      'keypress',
-      'scroll',
-      'touchstart',
-      'click',
-    ]
+    const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click']
     const handleActivity = () => resetInactivityTimer()
     events.forEach((e) => window.addEventListener(e, handleActivity))
     resetInactivityTimer()
@@ -75,52 +65,72 @@ export function useAuth() {
     }
   }, [store.user, resetInactivityTimer])
 
-  const login = async (email, motDePasse) => {
-    const credential = await signInWithEmailAndPassword(
-      auth,
-      email,
-      motDePasse
-    )
-    try {
-      await updateDoc(doc(db, 'utilisateurs', credential.user.uid), {
-        derniereConnexion: serverTimestamp(),
-      })
-    } catch {}
-    const idTokenResult = await credential.user.getIdTokenResult()
-    const userDoc = await getDoc(
-      doc(db, 'utilisateurs', credential.user.uid)
-    )
-    const role =
-      idTokenResult.claims?.role || userDoc.data()?.role || 'patient'
-    return {
-      user: credential.user,
-      role,
-      redirect: ROLE_REDIRECT[role] || '/',
-    }
+  // Connexion : met à jour le store de façon SYNCHRONE (comme l'ancien code
+  // Firebase) pour que le navigate() qui suit dans LoginPage ne parte pas
+  // avant que le rôle soit connu — évite un flash de redirection vers /connexion.
+  const login = async (email, password) => {
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+    if (error) throw mapAuthError(error)
+
+    const userData = await getUtilisateurById(data.user.id)
+    if (!userData) throw new Error('Utilisateur introuvable')
+
+    store.setUser({ ...userData, uid: data.user.id })
+    return { user: data.user, role: userData.role, redirect: ROUTES_PAR_ROLE[userData.role] || '/' }
   }
 
   const logout = async () => {
     if (inactivityRef.current) clearTimeout(inactivityRef.current)
-    await signOut(auth)
+    await supabase.auth.signOut()
   }
 
   const resetPassword = async (email) => {
-    await sendPasswordResetEmail(auth, email, {
-      url: `${window.location.origin}/login`,
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/connexion`,
     })
+    if (error) throw mapAuthError(error)
   }
 
-  const createUserProfile = async (uid, data) => {
-    await setDoc(doc(db, 'utilisateurs', uid), {
-      ...data,
-      dateCreation: serverTimestamp(),
-      actif: true,
+  // Inscription publique patient (équivalent InscriptionPage.jsx Firebase)
+  const createUserProfile = async ({ prenom, nom, email, password, telephone }) => {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: { data: { prenom, nom, role: 'patient' } }, // lu par le trigger handle_new_user
     })
+    if (error) throw mapAuthError(error)
+
+    const uid = data.user.id
+
+    // Si la confirmation par email est activée dans Supabase (par défaut),
+    // il n'y a pas de session active tant que l'email n'est pas confirmé :
+    // impossible d'écrire dans les tables protégées par RLS pour l'instant.
+    if (!data.session) {
+      return { uid, requiresEmailConfirmation: true }
+    }
+
+    if (telephone) {
+      await supabase.from('utilisateurs').update({ telephone }).eq('id', uid)
+    }
+
+    const numeroDossier = `PAT-${new Date().getFullYear()}-${String(Date.now()).slice(-4)}`
+    await supabase.from('patients').insert({
+      id: uid,
+      prenom,
+      nom,
+      telephone,
+      email,
+      numero_dossier: numeroDossier,
+      source: 'app',
+    })
+
+    const userData = { uid, prenom, nom, email, telephone, role: 'patient', actif: true }
+    store.setUser(userData)
+    return { uid, requiresEmailConfirmation: false, userData }
   }
 
   return {
     user: store.user,
-    userData: store.userData,
     role: store.role,
     loading: store.loading,
     initialized: store.initialized,
@@ -131,6 +141,15 @@ export function useAuth() {
     resetPassword,
     createUserProfile,
   }
+}
+
+function mapAuthError(error) {
+  const map = {
+    'Invalid login credentials': 'Email ou mot de passe incorrect.',
+    'Email not confirmed': "Veuillez confirmer votre email avant de vous connecter.",
+    'User already registered': 'Cet email est déjà utilisé. Connectez-vous à la place.',
+  }
+  return new Error(map[error.message] || error.message)
 }
 
 export default useAuth

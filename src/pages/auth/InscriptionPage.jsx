@@ -4,14 +4,11 @@ import {
   Eye, EyeOff, Mail, Lock, User,
   ArrowLeft, AlertCircle, Phone, CheckCircle,
 } from 'lucide-react'
-import { createUserWithEmailAndPassword } from 'firebase/auth'
-import { auth, db } from '../../services/firebase'
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore'
-import { useAuthStore } from '../../store/authStore'
+import { useAuth } from '../../hooks/useAuth'
 
 export function InscriptionPage() {
-  const navigate    = useNavigate()
-  const { setUser } = useAuthStore()
+  const navigate = useNavigate()
+  const { createUserProfile } = useAuth()
 
   const [form, setForm] = useState({
     prenom:    '',
@@ -25,6 +22,7 @@ export function InscriptionPage() {
   const [loading,  setLoading]  = useState(false)
   const [erreur,   setErreur]   = useState(null)
   const [succes,   setSucces]   = useState(false)
+  const [confirmationRequise, setConfirmationRequise] = useState(false)
 
   const update = (k, v) => { setForm((f) => ({ ...f, [k]: v })); setErreur(null) }
 
@@ -43,34 +41,26 @@ export function InscriptionPage() {
     setLoading(true)
     setErreur(null)
     try {
-      const cred = await createUserWithEmailAndPassword(auth, form.email, form.password)
-      const userData = {
-        uid:          cred.user.uid,
-        prenom:       form.prenom.trim(),
-        nom:          form.nom.trim(),
-        email:        form.email.trim(),
-        telephone:    form.telephone.trim(),
-        role:         'patient',
-        actif:        true,
-        dateCreation: serverTimestamp(),
-      }
-      await setDoc(doc(db, 'utilisateurs', cred.user.uid), userData)
-      // Créer aussi le dossier patient
-      await setDoc(doc(db, 'patients', cred.user.uid), {
-        ...userData,
-        numeroDossier: `PAT-${Date.now()}`,
-        allergies:     [],
-        antecedents:   [],
+      const result = await createUserProfile({
+        prenom:    form.prenom.trim(),
+        nom:       form.nom.trim(),
+        email:     form.email.trim(),
+        password:  form.password,
+        telephone: form.telephone.trim(),
       })
-      setUser({ ...userData, uid: cred.user.uid })
+
+      if (result.requiresEmailConfirmation) {
+        // Compte créé mais session inactive tant que l'email n'est pas confirmé
+        // (comportement par défaut de Supabase Auth)
+        setConfirmationRequise(true)
+        setSucces(true)
+        return
+      }
+
       setSucces(true)
       setTimeout(() => navigate('/patient'), 1500)
     } catch (e) {
-      if (e.code === 'auth/email-already-in-use') {
-        setErreur('Cet email est déjà utilisé. Connectez-vous à la place.')
-      } else {
-        setErreur('Erreur lors de la création du compte. Réessayez.')
-      }
+      setErreur(e.message || 'Erreur lors de la création du compte. Réessayez.')
     } finally {
       setLoading(false)
     }
@@ -167,7 +157,11 @@ export function InscriptionPage() {
           {succes && (
             <div className="alert-success mb-6 animate-fade-in">
               <CheckCircle className="w-4 h-4 flex-shrink-0" />
-              <p>Compte créé avec succès ! Redirection en cours...</p>
+              <p>
+                {confirmationRequise
+                  ? 'Compte créé ! Vérifiez votre boîte mail pour confirmer votre adresse, puis connectez-vous.'
+                  : 'Compte créé avec succès ! Redirection en cours...'}
+              </p>
             </div>
           )}
 

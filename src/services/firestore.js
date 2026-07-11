@@ -4,6 +4,15 @@ import {
   serverTimestamp, setDoc,
 } from 'firebase/firestore'
 import { db } from './firebase'
+import { supabase } from './supabase'
+
+// ══════════════════════════════════════════════════════════
+// NOTE MIGRATION — état hybride temporaire
+// Les fonctions UTILISATEURS ci-dessous utilisent déjà Supabase.
+// Tout le reste (patients, rendezvous, consultations, factures,
+// messagerie, articles) est encore sur Firestore et sera migré
+// collection par collection dans une prochaine étape.
+// ══════════════════════════════════════════════════════════
 
 // ══════════════════════════════════════════════════════════
 // PATIENTS
@@ -358,44 +367,72 @@ export const creerOuOuvrirConversation = async (user1Id, user2Id) => {
 }
 
 // ══════════════════════════════════════════════════════════
-// UTILISATEURS & MÉDECINS
+// UTILISATEURS & MÉDECINS  (Supabase — table "utilisateurs")
 // ══════════════════════════════════════════════════════════
 
+// La table Postgres utilise snake_case (date_creation) alors que
+// le reste de l'app utilise camelCase (dateCreation) : on mappe ici
+// pour ne rien casser dans les composants qui consomment ces fonctions.
+const mapUtilisateur = (row) =>
+  row && {
+    id: row.id,
+    prenom: row.prenom,
+    nom: row.nom,
+    email: row.email,
+    role: row.role,
+    actif: row.actif,
+    specialite: row.specialite,
+    tarif: row.tarif,
+    telephone: row.telephone,
+    disponibilites: row.disponibilites,
+    dateCreation: row.date_creation,
+  }
+
 export const getUtilisateurs = async () => {
-  const snap = await getDocs(collection(db, 'utilisateurs'))
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+  const { data, error } = await supabase.from('utilisateurs').select('*')
+  if (error) throw error
+  return data.map(mapUtilisateur)
 }
 
 export const getUtilisateurById = async (id) => {
-  const snap = await getDoc(doc(db, 'utilisateurs', id))
-  return snap.exists() ? { id: snap.id, ...snap.data() } : null
+  const { data, error } = await supabase
+    .from('utilisateurs')
+    .select('*')
+    .eq('id', id)
+    .maybeSingle()
+  if (error) throw error
+  return mapUtilisateur(data)
 }
 
 export const getMedecins = async () => {
-  const q = query(
-    collection(db, 'utilisateurs'),
-    where('role', '==', 'medecin'),
-    where('actif', '==', true)
-  )
-  const snap = await getDocs(q)
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+  const { data, error } = await supabase
+    .from('utilisateurs')
+    .select('*')
+    .eq('role', 'medecin')
+    .eq('actif', true)
+  if (error) throw error
+  return data.map(mapUtilisateur)
 }
 
 export const getSecretaires = async () => {
-  const q = query(
-    collection(db, 'utilisateurs'),
-    where('role', '==', 'secretaire'),
-    where('actif', '==', true)
-  )
-  const snap = await getDocs(q)
-  return snap.docs.map((d) => ({ id: d.id, ...d.data() }))
+  const { data, error } = await supabase
+    .from('utilisateurs')
+    .select('*')
+    .eq('role', 'secretaire')
+    .eq('actif', true)
+  if (error) throw error
+  return data.map(mapUtilisateur)
 }
 
 export const updateUtilisateur = async (id, data) => {
-  await updateDoc(doc(db, 'utilisateurs', id), {
-    ...data,
-    dateMiseAJour: serverTimestamp(),
-  })
+  const payload = {}
+  ;['prenom', 'nom', 'telephone', 'role', 'actif', 'specialite', 'tarif', 'disponibilites'].forEach(
+    (champ) => {
+      if (data[champ] !== undefined) payload[champ] = data[champ]
+    }
+  )
+  const { error } = await supabase.from('utilisateurs').update(payload).eq('id', id)
+  if (error) throw error
 }
 
 // ══════════════════════════════════════════════════════════

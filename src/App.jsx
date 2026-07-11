@@ -1,9 +1,6 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from './store/authStore'
-import { useEffect } from 'react'
-import { onAuthStateChanged } from 'firebase/auth'
-import { auth } from './services/firebase'
-import { getUtilisateurById } from './services/firestore'
+import { useAuth } from './hooks/useAuth'
 import BlogPage    from './pages/public/BlogPage'
 import PriseRdvPage from './pages/public/PriseRdvPage'
 
@@ -96,23 +93,9 @@ function RedirectByRole() {
 
 // ── App ───────────────────────────────────────────────────
 export default function App() {
-  const { setUser } = useAuthStore()
-
-  useEffect(() => {
-  const unsub = onAuthStateChanged(auth, async (firebaseUser) => {
-    if (firebaseUser) {
-      try {
-        const data = await getUtilisateurById(firebaseUser.uid)
-        setUser(data ? { ...data, uid: firebaseUser.uid } : null)
-      } catch {
-        setUser(null)
-      }
-    } else {
-      setUser(null)
-    }
-  })
-  return () => unsub()
-}, [])
+  // Initialise et écoute la session Supabase, alimente useAuthStore.
+  // (remplace l'ancien onAuthStateChanged Firebase inline)
+  useAuth()
 
   return (
     <Routes>

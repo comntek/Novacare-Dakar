@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   Stethoscope, Calendar, Clock, User,
   Phone, Mail, ArrowLeft, CheckCircle,
-  AlertCircle, Video, Menu, X, ChevronDown,
+  AlertCircle, Video, Menu, X, ChevronDown, MapPin,
 } from 'lucide-react'
 import { getMedecins, createRdv } from '../../services/firestore'
 import { format, addDays } from 'date-fns'
