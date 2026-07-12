@@ -1,5 +1,6 @@
 import { Menu, Bell, Search } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
+import { useClinicStore } from '../../store/clinicStore'
 
 const TITRES = {
   secretaire: 'Espace Secrétaire',
@@ -18,6 +19,7 @@ const ROLE_COLORS = {
 export function DashboardHeader({ onMenuOpen }) {
   const { user } = useAuthStore()
   const role     = user?.role || 'patient'
+  const nomClinique = useClinicStore((s) => s.data.nomClinique)
 
   const initiales = user
     ? `${user.prenom?.[0] || ''}${user.nom?.[0] || ''}`.toUpperCase()
@@ -38,7 +40,7 @@ export function DashboardHeader({ onMenuOpen }) {
       {/* Titre */}
       <div className="hidden sm:block">
         <p className="text-sm font-black text-neutral-text">{TITRES[role]}</p>
-        <p className="text-2xs text-neutral-muted">NovaCare Dakar</p>
+        <p className="text-2xs text-neutral-muted">{nomClinique || 'NovaCare Dakar'}</p>
       </div>
 
       {/* Recherche */}

@@ -1,5 +1,7 @@
+import { useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuthStore } from './store/authStore'
+import { useClinicStore } from './store/clinicStore'
 import { useAuth } from './hooks/useAuth'
 import BlogPage    from './pages/public/BlogPage'
 import PriseRdvPage from './pages/public/PriseRdvPage'
@@ -93,9 +95,10 @@ function RedirectByRole() {
 
 // ── App ───────────────────────────────────────────────────
 export default function App() {
-  // Initialise et écoute la session Supabase, alimente useAuthStore.
-  // (remplace l'ancien onAuthStateChanged Firebase inline)
   useAuth()
+
+  const loadClinic = useClinicStore((s) => s.load)
+  useEffect(() => { loadClinic() }, [loadClinic])
 
   return (
     <Routes>

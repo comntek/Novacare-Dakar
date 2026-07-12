@@ -3,6 +3,7 @@ import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { Menu, X, Phone, Stethoscope, Calendar } from 'lucide-react'
 import { useAuth } from '../../hooks/useAuth'
 import { ROLE_REDIRECT } from '../../constants/roles'
+import { useClinicStore } from '../../store/clinicStore'
 
 const NAV_LINKS = [
   { to: '/', label: 'Accueil' },
@@ -18,6 +19,8 @@ export function PublicHeader() {
   const [scrolled, setScrolled] = useState(false)
   const { user, role } = useAuth()
   const navigate = useNavigate()
+  const clinique = useClinicStore((s) => s.data)
+  const telephoneHref = (clinique.telephone || '').replace(/[^\d+]/g, '')
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20)
@@ -39,16 +42,18 @@ export function PublicHeader() {
     >
       {/* Top bar */}
       <div className="bg-primary text-white text-xs py-1.5 px-4 hidden md:flex items-center justify-between">
-        <span>Bienvenue à la Clinique MediSync Pro — Excellence et confiance</span>
+        <span>Bienvenue à la Clinique {clinique.nomClinique || 'NovaCare Dakar'} — {clinique.slogan || 'Excellence et confiance'}</span>
         <div className="flex items-center gap-4">
-          <a
-            href="tel:+221338001234"
-            className="flex items-center gap-1.5 hover:text-primary-200 transition-colors"
-          >
-            <Phone className="w-3 h-3" />
-            +221 33 800 12 34
-          </a>
-          <span>Lun–Sam : 8h–20h</span>
+          {clinique.telephone && (
+            <a
+              href={`tel:${telephoneHref}`}
+              className="flex items-center gap-1.5 hover:text-primary-200 transition-colors"
+            >
+              <Phone className="w-3 h-3" />
+              {clinique.telephone}
+            </a>
+          )}
+          <span>Lun–Sam : {clinique.horaires?.lundi?.debut || '8h'}–{clinique.horaires?.lundi?.fin || '20h'}</span>
         </div>
       </div>
 
@@ -63,7 +68,7 @@ export function PublicHeader() {
             </div>
             <div className="hidden sm:block">
               <p className="font-bold text-neutral-text text-sm leading-tight">
-                MediSync Pro
+                {clinique.nomClinique || 'NovaCare Dakar'}
               </p>
               <p className="text-xs text-neutral-muted leading-tight">
                 Clinique digitale

@@ -294,25 +294,27 @@ export function InscriptionPage() {
             </div>
 
             {/* CGU */}
-            <div className="flex items-start gap-3 pt-1">
-              <input
-                type="checkbox"
-                id="cgu"
-                required
-                className="w-4 h-4 accent-primary mt-0.5 flex-shrink-0"
-              />
-              <label htmlFor="cgu" className="text-xs text-neutral-muted leading-relaxed">
-                J'accepte les{' '}
-                <span className="text-primary font-semibold cursor-pointer hover:underline">
-                  conditions d'utilisation
-                </span>{' '}
-                et la{' '}
-                <span className="text-primary font-semibold cursor-pointer hover:underline">
-                  politique de confidentialité
-                </span>{' '}
-                de NovaCare Dakar.
-              </label>
-            </div>
+            <label htmlFor="cgu" className="text-xs text-neutral-muted leading-relaxed">
+  J'accepte les{' '}
+  <Link
+    to="/conditions-utilisation"
+    target="_blank"
+    rel="noopener noreferrer"
+    className="text-primary font-semibold hover:underline"
+  >
+    conditions d'utilisation
+  </Link>{' '}
+  et la{' '}
+  <Link
+    to="/politique-confidentialite"
+    target="_blank"
+    rel="noopener noreferrer"
+    className="text-primary font-semibold hover:underline"
+  >
+    politique de confidentialité
+  </Link>{' '}
+  de NovaCare Dakar.
+</label>
 
             {/* Bouton */}
             <button

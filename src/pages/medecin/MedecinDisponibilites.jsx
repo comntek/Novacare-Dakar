@@ -48,10 +48,11 @@ export function MedecinDisponibilites() {
       setChargement(true)
       try {
         const data = await getUtilisateurById(user.uid)
-        if (data?.disponibilites) setDispos(data.disponibilites)
-        if (data?.dureeConsultation) setDureeConsult(data.dureeConsultation)
+        const saved = data?.disponibilites || {}
+        const { dureeConsultation, ...jours } = saved
+        setDispos({ ...DISPONIBILITES_DEFAUT, ...jours })
+        if (dureeConsultation) setDureeConsult(dureeConsultation)
       } catch (e) {
-        // Garder les valeurs par défaut
       } finally {
         setChargement(false)
       }
@@ -74,8 +75,7 @@ export function MedecinDisponibilites() {
     setSucces(false)
     try {
       await updateUtilisateur(user.uid, {
-        disponibilites:    dispos,
-        dureeConsultation: dureeConsult,
+        disponibilites: { ...dispos, dureeConsultation: dureeConsult },
       })
       setSucces(true)
       setTimeout(() => setSucces(false), 3000)
@@ -160,7 +160,7 @@ export function MedecinDisponibilites() {
 
         <div className="space-y-3">
           {JOURS.map(({ id, label }) => {
-            const jour = dispos[id]
+            const jour = dispos[id] || DISPONIBILITES_DEFAUT[id]
             return (
               <div
                 key={id}

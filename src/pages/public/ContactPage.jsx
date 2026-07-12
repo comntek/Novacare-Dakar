@@ -4,9 +4,16 @@ import {
   Stethoscope, Phone, Mail, MapPin,
   ArrowLeft, Send, Clock, CheckCircle,
 } from 'lucide-react'
+import { useClinicStore } from '../../store/clinicStore'
+
+const JOURS_LABEL = {
+  lundi: 'Lundi', mardi: 'Mardi', mercredi: 'Mercredi', jeudi: 'Jeudi',
+  vendredi: 'Vendredi', samedi: 'Samedi', dimanche: 'Dimanche',
+}
 
 export default function ContactPage() {
   const navigate = useNavigate()
+  const clinique = useClinicStore((s) => s.data)
   const [form, setForm]       = useState({ nom: '', email: '', telephone: '', message: '' })
   const [envoye, setEnvoye]   = useState(false)
 
@@ -60,10 +67,10 @@ export default function ContactPage() {
             <h2 className="text-2xl font-bold text-neutral-text">Nos coordonnées</h2>
 
             {[
-              { icon: MapPin, titre: 'Adresse',  info: 'Route de la Corniche, Plateau\nDakar, Sénégal' },
-              { icon: Phone,  titre: 'Téléphone',info: '+221 33 800 12 34\n+221 77 000 12 34'           },
-              { icon: Mail,   titre: 'Email',    info: 'contact@novacare.sn\nurgences@novacare.sn'      },
-            ].map(({ icon: Icon, titre, info }) => (
+              { icon: MapPin, titre: 'Adresse',   info: clinique.adresse || '' },
+              { icon: Phone,  titre: 'Téléphone', info: [clinique.telephone, clinique.telephone2].filter(Boolean).join('\n') },
+              { icon: Mail,   titre: 'Email',     info: clinique.email || '' },
+            ].filter(({ info }) => info).map(({ icon: Icon, titre, info }) => (
               <div key={titre} className="flex items-start gap-4">
                 <div className="w-11 h-11 bg-primary-50 rounded-xl flex items-center justify-center flex-shrink-0">
                   <Icon className="w-5 h-5 text-primary" />
@@ -84,9 +91,15 @@ export default function ContactPage() {
                 <p className="font-semibold text-primary">Horaires d'ouverture</p>
               </div>
               <div className="space-y-1 text-sm text-neutral-text">
-                <p>Lundi — Vendredi : 08h00 — 20h00</p>
-                <p>Samedi : 09h00 — 18h00</p>
-                <p className="text-neutral-muted">Dimanche : Urgences uniquement</p>
+                {Object.entries(JOURS_LABEL).map(([key, label]) => {
+                  const j = clinique.horaires?.[key]
+                  if (!j) return null
+                  return (
+                    <p key={key} className={!j.actif ? 'text-neutral-muted' : ''}>
+                      {label} : {j.actif ? `${j.debut} — ${j.fin}` : 'Fermé'}
+                    </p>
+                  )
+                })}
               </div>
             </div>
           </div>
@@ -216,17 +229,21 @@ export default function ContactPage() {
             <div>
               <p className="font-bold text-white mb-4 text-sm">Contact</p>
               <div className="space-y-3 text-sm text-white/60">
-                <div className="flex items-start gap-2">
-                  <MapPin className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                  <span>Route de Lac Rose, Dakar</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Phone className="w-4 h-4 flex-shrink-0" />
-                  <span>+221 70 982 25 61</span>
-                </div>
+                {clinique.adresse && (
+                  <div className="flex items-start gap-2">
+                    <MapPin className="w-4 h-4 flex-shrink-0 mt-0.5" />
+                    <span>{clinique.adresse}</span>
+                  </div>
+                )}
+                {clinique.telephone && (
+                  <div className="flex items-center gap-2">
+                    <Phone className="w-4 h-4 flex-shrink-0" />
+                    <span>{clinique.telephone}</span>
+                  </div>
+                )}
                 <div className="flex items-center gap-2">
                   <Clock className="w-4 h-4 flex-shrink-0" />
-                  <span>Lun–Sam : 8h–20h</span>
+                  <span>Lun–Sam : {clinique.horaires?.lundi?.debut || '8h'}–{clinique.horaires?.lundi?.fin || '20h'}</span>
                 </div>
               </div>
             </div>

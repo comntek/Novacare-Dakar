@@ -665,3 +665,31 @@ export const deleteArticle = async (id) => {
   const { error } = await supabase.from('articles').delete().eq('id', id)
   if (error) throw error
 }
+
+const mapClinique = (row) => row && {
+  nomClinique: row.nom_clinique, slogan: row.slogan, adresse: row.adresse,
+  telephone: row.telephone, telephone2: row.telephone_2, email: row.email,
+  siteWeb: row.site_web, ninea: row.ninea, horaires: row.horaires,
+  couleurPrimaire: row.couleur_primaire, couleurSecondaire: row.couleur_secondaire,
+  logoUrl: row.logo_url, facebook: row.facebook, instagram: row.instagram,
+  whatsapp: row.whatsapp, linkedin: row.linkedin, dateMiseAJour: row.date_mise_a_jour,
+}
+
+export const getClinique = async () => {
+  const { data, error } = await supabase.from('clinique').select('*').eq('id', 1).maybeSingle()
+  if (error) throw error
+  return mapClinique(data)
+}
+
+export const updateClinique = async (data) => {
+  const payload = { date_mise_a_jour: new Date().toISOString() }
+  const map = { nomClinique: 'nom_clinique', slogan: 'slogan', adresse: 'adresse',
+    telephone: 'telephone', telephone2: 'telephone_2', email: 'email', siteWeb: 'site_web',
+    ninea: 'ninea', horaires: 'horaires', couleurPrimaire: 'couleur_primaire',
+    couleurSecondaire: 'couleur_secondaire', logoUrl: 'logo_url', facebook: 'facebook',
+    instagram: 'instagram', whatsapp: 'whatsapp', linkedin: 'linkedin' }
+  Object.entries(map).forEach(([js, col]) => { if (data[js] !== undefined) payload[col] = data[js] })
+  const { error } = await supabase.from('clinique').update(payload).eq('id', 1)
+  if (error) throw error
+  return getClinique()
+}
