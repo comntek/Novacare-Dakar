@@ -1,8 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
 
-// Remplace src/services/firebase.js pour l'authentification.
-// firebase.js reste en place tant que les autres collections
-// (rendezvous, consultations, factures...) n'ont pas été migrées.
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 

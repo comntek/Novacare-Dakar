@@ -103,13 +103,13 @@ export function PublicHeader() {
             ) : (
               <>
                 <Link
-                  to="/login"
+                  to="/connexion"
                   className="hidden sm:flex btn-ghost text-sm"
                 >
                   Connexion
                 </Link>
                 <Link
-                  to="/rendez-vous"
+                  to="/prise-rdv"
                   className="btn-accent text-sm"
                 >
                   <Calendar className="w-4 h-4" />
@@ -156,7 +156,7 @@ export function PublicHeader() {
           ))}
           {!user && (
             <Link
-              to="/login"
+              to="/connexion"
               onClick={() => setMenuOpen(false)}
               className="block px-3 py-2.5 rounded-xl text-sm font-medium text-neutral-subtle hover:bg-neutral-bg"
             >

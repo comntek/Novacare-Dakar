@@ -6,8 +6,13 @@ import {
   Stethoscope, ClipboardList, Video, X,
 } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
-import { signOut } from 'firebase/auth'
-import { auth } from '../../services/firebase'
+import { supabase } from '../../services/supabase'
+
+const handleLogout = async () => {
+    try { await supabase.auth.signOut() } catch (_) {}
+    logout()
+    navigate('/connexion')
+}
 
 const MENUS = {
   secretaire: [

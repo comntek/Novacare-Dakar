@@ -18,7 +18,7 @@ const LINKS = {
     { label: 'Téléconsultation', to: '/services' },
   ],
   pratique: [
-    { label: 'Prendre RDV', to: '/rendez-vous' },
+    { label: 'Prendre RDV', to: '/prise-rdv' },
     { label: 'Notre équipe', to: '/equipe' },
     { label: 'Blog santé', to: '/blog' },
     { label: 'Urgences', to: '/urgences' },

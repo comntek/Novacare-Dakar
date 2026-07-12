@@ -176,7 +176,7 @@ export function MedecinDashboard() {
                 key={rdv.id}
                 className="flex items-center gap-4 p-3 rounded-xl bg-neutral-bg
                            hover:bg-primary-50/40 transition-colors cursor-pointer"
-                onClick={() => navigate('/medecin/consultations')}
+                onClick={() => navigate('/medecin/consultation')}
               >
                 <div className="text-center w-14 flex-shrink-0">
                   <p className="text-sm font-bold text-primary">{rdv.heure}</p>
@@ -213,7 +213,7 @@ export function MedecinDashboard() {
         <div className="flex items-center justify-between mb-4">
           <h2 className="section-title">Dernières consultations</h2>
           <button
-            onClick={() => navigate('/medecin/consultations')}
+            onClick={() => navigate('/medecin/consultation')}
             className="btn-ghost btn-sm flex items-center gap-1"
           >
             Voir tout <ArrowRight className="w-3.5 h-3.5" />
@@ -258,7 +258,7 @@ export function MedecinDashboard() {
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         {[
           { label: 'Mon agenda',       desc: 'Planning du jour',          to: '/medecin/agenda',          couleur: 'bg-info-50 text-info'       },
-          { label: 'Consultations',    desc: 'Démarrer une consultation', to: '/medecin/consultations',   couleur: 'bg-primary-50 text-primary' },
+          { label: 'Consultations',    desc: 'Démarrer une consultation', to: '/medecin/consultation',   couleur: 'bg-primary-50 text-primary' },
           { label: 'Mes patients',     desc: 'Dossiers patients',         to: '/medecin/patients',        couleur: 'bg-accent-50 text-accent'   },
         ].map(({ label, desc, to, couleur }) => (
           <button

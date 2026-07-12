@@ -25,8 +25,6 @@ export function useAuth() {
     }
   }, [store.user])
 
-  // Écoute la session Supabase (remplace onAuthStateChanged de Firebase).
-  // Alimente useAuthStore.setUser, exactement comme le faisait App.jsx.
   useEffect(() => {
     const loadProfile = async (sessionUser) => {
       if (!sessionUser) {
@@ -52,7 +50,6 @@ export function useAuth() {
     return () => listener?.subscription?.unsubscribe()
   }, [])
 
-  // Déconnexion automatique après 30 min d'inactivité
   useEffect(() => {
     if (!store.user) return
     const events = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click']
@@ -65,9 +62,6 @@ export function useAuth() {
     }
   }, [store.user, resetInactivityTimer])
 
-  // Connexion : met à jour le store de façon SYNCHRONE (comme l'ancien code
-  // Firebase) pour que le navigate() qui suit dans LoginPage ne parte pas
-  // avant que le rôle soit connu — évite un flash de redirection vers /connexion.
   const login = async (email, password) => {
     const { data, error } = await supabase.auth.signInWithPassword({ email, password })
     if (error) throw mapAuthError(error)
@@ -91,20 +85,16 @@ export function useAuth() {
     if (error) throw mapAuthError(error)
   }
 
-  // Inscription publique patient (équivalent InscriptionPage.jsx Firebase)
   const createUserProfile = async ({ prenom, nom, email, password, telephone }) => {
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
-      options: { data: { prenom, nom, role: 'patient' } }, // lu par le trigger handle_new_user
+      options: { data: { prenom, nom, role: 'patient' } },
     })
     if (error) throw mapAuthError(error)
 
     const uid = data.user.id
 
-    // Si la confirmation par email est activée dans Supabase (par défaut),
-    // il n'y a pas de session active tant que l'email n'est pas confirmé :
-    // impossible d'écrire dans les tables protégées par RLS pour l'instant.
     if (!data.session) {
       return { uid, requiresEmailConfirmation: true }
     }

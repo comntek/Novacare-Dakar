@@ -7,9 +7,7 @@ import {
 import {
   getMedecins, updateUtilisateur,
 } from '../../services/firestore'
-import { createUserWithEmailAndPassword } from 'firebase/auth'
-import { auth, db } from '../../services/firebase'
-import { doc, setDoc, serverTimestamp } from 'firebase/firestore'
+import { supabase } from '../../services/supabase'
 
 // ── Modal nouveau médecin ─────────────────────────────────
 function ModalNouveauMedecin({ onClose, onSave }) {
@@ -35,31 +33,28 @@ function ModalNouveauMedecin({ onClose, onSave }) {
     setSauvegarde(true)
     setErreur(null)
     try {
-      // Créer le compte Firebase Auth
-      const cred = await createUserWithEmailAndPassword(auth, form.email, form.password)
-      // Créer le document Firestore
-      await setDoc(doc(db, 'utilisateurs', cred.user.uid), {
-        uid:        cred.user.uid,
-        prenom:     form.prenom.trim(),
-        nom:        form.nom.trim(),
-        email:      form.email.trim(),
-        specialite: form.specialite.trim(),
-        telephone:  form.telephone.trim(),
-        tarif:      form.tarif ? parseInt(form.tarif) : 25000,
-        role:       'medecin',
-        actif:      true,
-        dateCreation: serverTimestamp(),
+      const { data: { session } } = await supabase.auth.getSession()
+
+      const { data, error } = await supabase.functions.invoke('create-medecin', {
+        body: {
+          prenom: form.prenom.trim(),
+          nom: form.nom.trim(),
+          email: form.email.trim(),
+          password: form.password,
+          specialite: form.specialite.trim(),
+          telephone: form.telephone.trim(),
+          tarif: form.tarif ? parseInt(form.tarif) : undefined,
+        },
+        headers: { Authorization: `Bearer ${session.access_token}` },
       })
+
+      if (error) throw error
+      if (data?.error) throw new Error(data.error)
+
       onSave()
       onClose()
     } catch (e) {
-      if (e.code === 'auth/email-already-in-use') {
-        setErreur('Cet email est déjà utilisé.')
-      } else if (e.code === 'auth/weak-password') {
-        setErreur('Le mot de passe doit contenir au moins 6 caractères.')
-      } else {
-        setErreur('Erreur lors de la création du compte.')
-      }
+      setErreur(e.message || 'Erreur lors de la création du compte.')
     } finally {
       setSauvegarde(false)
     }
