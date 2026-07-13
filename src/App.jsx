@@ -95,8 +95,13 @@ function RedirectByRole() {
 
 // ── App ───────────────────────────────────────────────────
 export default function App() {
+  // Initialise et écoute la session Supabase, alimente useAuthStore.
+  // (remplace l'ancien onAuthStateChanged Firebase inline)
   useAuth()
 
+  // Charge les infos de la clinique (nom, coordonnées, horaires...) une
+  // seule fois au démarrage — consommées par le header/footer publics,
+  // la page Contact et Admin > Paramètres.
   const loadClinic = useClinicStore((s) => s.load)
   useEffect(() => { loadClinic() }, [loadClinic])
 

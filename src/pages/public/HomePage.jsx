@@ -314,9 +314,9 @@ export default function HomePage() {
               {/* Badges confiance */}
               <div className="flex flex-wrap gap-3 pt-2">
                 {[
-                  "✅ Certifié ISO 9001",
-                  "🕐 Urgences 24h/7j",
-                  "⭐ 98% satisfaction",
+                  "Certifié ISO 9001",
+                  "Urgences 24h/7j",
+                  "98% satisfaction",
                 ].map((b) => (
                   <span
                     key={b}
@@ -338,7 +338,7 @@ export default function HomePage() {
                                 rounded-3xl border border-white/20 backdrop-blur-sm overflow-hidden"
                 >
                   <img
-                    src="https://images.unsplash.com/photo-1612349317150-e413f6a5b16d?w=600&q=80&auto=format&fit=crop"
+                    src="https://i.pinimg.com/1200x/94/1d/83/941d832cb052d79777257f6f7f5e02db.jpg"
                     alt="Médecin NovaCare"
                     className="w-full h-full object-cover object-top mix-blend-luminosity opacity-90"
                   />

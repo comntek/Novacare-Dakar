@@ -2,13 +2,18 @@
 -- NovaCare Dakar — Schéma complet Supabase (remplace Firestore)
 -- À exécuter dans Supabase Dashboard > SQL Editor
 -- Idempotent : peut être relancé sans risque
+--
+-- NOTE : cette version resynchronise le fichier versionné avec l'état
+-- réel de la base (les tables rendezvous/consultations/factures/
+-- conversations/messages/articles avaient été créées directement dans
+-- le dashboard Supabase et n'étaient plus reflétées ici) + ajoute la
+-- table `clinique` (config globale éditable depuis Admin > Paramètres).
 -- =========================================================
 
 create extension if not exists "uuid-ossp";
-create extension if not exists "pgcrypto"; -- pour gen_random_uuid()
+create extension if not exists "pgcrypto";
 
-do $$
-begin
+do $$ begin
   if not exists (select 1 from pg_type where typname = 'user_role') then
     create type public.user_role as enum ('admin', 'medecin', 'secretaire', 'patient');
   end if;
@@ -26,10 +31,6 @@ begin
   end if;
 end$$;
 
--- ══════════════════════════════════════════════════════════
--- UTILISATEURS  (comptes avec login : admin, médecin, secrétaire, patient)
--- id = auth.users(id) — 1 compte Auth = 1 ligne ici
--- ══════════════════════════════════════════════════════════
 create table if not exists public.utilisateurs (
   id uuid primary key references auth.users(id) on delete cascade,
   prenom text not null default '',
@@ -46,10 +47,8 @@ create table if not exists public.utilisateurs (
 
 alter table public.utilisateurs enable row level security;
 
-create or replace function public.current_user_role()
-returns public.user_role
-language sql security definer stable
-as $$
+create or replace function public.current_user_role() returns public.user_role
+language sql security definer stable as $$
   select role from public.utilisateurs where id = auth.uid();
 $$;
 
@@ -60,8 +59,6 @@ drop policy if exists "select_all_staff" on public.utilisateurs;
 create policy "select_all_staff" on public.utilisateurs for select
   using (public.current_user_role() in ('admin', 'secretaire'));
 
--- Un médecin doit pouvoir voir les profils des patients qui le contactent en
--- messagerie, et des autres médecins/secrétaires/admins (annuaire interne)
 drop policy if exists "select_all_medecin" on public.utilisateurs;
 create policy "select_all_medecin" on public.utilisateurs for select
   using (public.current_user_role() = 'medecin');
@@ -77,8 +74,8 @@ drop policy if exists "insert_self_or_admin" on public.utilisateurs;
 create policy "insert_self_or_admin" on public.utilisateurs for insert
   with check (id = auth.uid() or public.current_user_role() = 'admin');
 
-create or replace function public.handle_new_user()
-returns trigger language plpgsql security definer as $$
+create or replace function public.handle_new_user() returns trigger
+language plpgsql security definer as $$
 begin
   insert into public.utilisateurs (id, prenom, nom, email, role, actif)
   values (
@@ -99,14 +96,6 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute procedure public.handle_new_user();
 
--- ══════════════════════════════════════════════════════════
--- PATIENTS  (dossiers médicaux)
--- id INDÉPENDANT de auth.users : un dossier peut exister sans compte
--- (créé par la secrétaire). Quand un patient s'inscrit lui-même via
--- /inscription, on fixe volontairement id = son uid Auth (voir useAuth.js)
--- pour que tout le reste du code (qui utilise user.uid comme patientId)
--- continue de fonctionner sans changement.
--- ══════════════════════════════════════════════════════════
 create table if not exists public.patients (
   id uuid primary key default gen_random_uuid(),
   prenom text not null default '',
@@ -151,9 +140,6 @@ create policy "patient_update_self_or_staff" on public.patients for update
 
 create index if not exists idx_patients_medecin_referent on public.patients(medecin_referent_id);
 
--- ══════════════════════════════════════════════════════════
--- RENDEZ-VOUS
--- ══════════════════════════════════════════════════════════
 create table if not exists public.rendezvous (
   id uuid primary key default gen_random_uuid(),
   patient_id uuid references public.patients(id) on delete set null,
@@ -190,8 +176,6 @@ drop policy if exists "rdv_select_patient" on public.rendezvous;
 create policy "rdv_select_patient" on public.rendezvous for select
   using (patient_id = auth.uid());
 
--- Insertion : la secrétaire/l'admin/le médecin depuis l'app, OU un visiteur
--- anonyme depuis /prise-rdv (patient_non_inscrit = true, aucune session requise)
 drop policy if exists "rdv_insert" on public.rendezvous;
 create policy "rdv_insert" on public.rendezvous for insert
   with check (
@@ -212,9 +196,6 @@ create index if not exists idx_rdv_patient on public.rendezvous(patient_id);
 create index if not exists idx_rdv_date on public.rendezvous(date);
 create index if not exists idx_rdv_non_inscrit on public.rendezvous(patient_non_inscrit);
 
--- ══════════════════════════════════════════════════════════
--- CONSULTATIONS
--- ══════════════════════════════════════════════════════════
 create table if not exists public.consultations (
   id uuid primary key default gen_random_uuid(),
   patient_id uuid references public.patients(id) on delete set null,
@@ -226,7 +207,7 @@ create table if not exists public.consultations (
   examen_clinique text,
   diagnostic text,
   plan_traitement text,
-  ordonnances jsonb not null default '[]'::jsonb, -- [{medicament, posologie, duree}]
+  ordonnances jsonb not null default '[]'::jsonb,
   statut public.consultation_statut not null default 'en_cours',
   date_creation timestamptz not null default now(),
   date_mise_a_jour timestamptz
@@ -257,9 +238,6 @@ create policy "consultation_update_medecin" on public.consultations for update
 create index if not exists idx_consult_medecin on public.consultations(medecin_id);
 create index if not exists idx_consult_patient on public.consultations(patient_id);
 
--- ══════════════════════════════════════════════════════════
--- FACTURES
--- ══════════════════════════════════════════════════════════
 create table if not exists public.factures (
   id uuid primary key default gen_random_uuid(),
   patient_id uuid references public.patients(id) on delete set null,
@@ -292,16 +270,13 @@ create policy "facture_update_staff" on public.factures for update
 
 create index if not exists idx_facture_patient on public.factures(patient_id);
 
--- ══════════════════════════════════════════════════════════
--- CONVERSATIONS & MESSAGES  (messagerie interne)
--- ══════════════════════════════════════════════════════════
 create table if not exists public.conversations (
   id uuid primary key default gen_random_uuid(),
   participant_1 uuid not null references public.utilisateurs(id) on delete cascade,
   participant_2 uuid not null references public.utilisateurs(id) on delete cascade,
   dernier_message text,
   dernier_message_date timestamptz,
-  non_lus jsonb not null default '{}'::jsonb, -- { "uid": true/false }
+  non_lus jsonb not null default '{}'::jsonb,
   date_creation timestamptz not null default now(),
   constraint conversation_participants_distincts check (participant_1 <> participant_2)
 );
@@ -312,9 +287,6 @@ drop policy if exists "conversation_select_participant" on public.conversations;
 create policy "conversation_select_participant" on public.conversations for select
   using (auth.uid() in (participant_1, participant_2));
 
--- Restrictions métier fines (médecin <-> patient référent uniquement, etc.)
--- restent appliquées côté application comme avant ; RLS garantit ici la
--- règle de base : on ne peut voir/écrire que ses propres conversations.
 drop policy if exists "conversation_insert_participant" on public.conversations;
 create policy "conversation_insert_participant" on public.conversations for insert
   with check (auth.uid() in (participant_1, participant_2));
@@ -359,9 +331,6 @@ create policy "message_insert_participant" on public.messages for insert
 
 create index if not exists idx_messages_conversation on public.messages(conversation_id);
 
--- ══════════════════════════════════════════════════════════
--- ARTICLES (blog public)
--- ══════════════════════════════════════════════════════════
 create table if not exists public.articles (
   id uuid primary key default gen_random_uuid(),
   titre text not null,
@@ -377,8 +346,6 @@ create table if not exists public.articles (
 
 alter table public.articles enable row level security;
 
--- Le blog public doit être lisible par tout le monde, y compris les
--- visiteurs non connectés (site vitrine)
 drop policy if exists "article_select_publie" on public.articles;
 create policy "article_select_publie" on public.articles for select
   using (publie = true);
@@ -388,6 +355,7 @@ create policy "article_select_admin" on public.articles for select
   using (public.current_user_role() = 'admin');
 
 drop policy if exists "article_write_admin" on public.articles;
+drop policy if exists "article_insert_admin" on public.articles;
 create policy "article_insert_admin" on public.articles for insert
   with check (public.current_user_role() = 'admin');
 
@@ -399,12 +367,60 @@ drop policy if exists "article_delete_admin" on public.articles;
 create policy "article_delete_admin" on public.articles for delete
   using (public.current_user_role() = 'admin');
 
--- ══════════════════════════════════════════════════════════
--- REALTIME — active la réplication pour les tables qui en ont besoin
--- (file d'attente secrétaire, messagerie temps réel)
--- ══════════════════════════════════════════════════════════
-do $$
-begin
+create table if not exists public.clinique (
+  id smallint primary key default 1,
+  nom_clinique text not null default 'NovaCare Dakar',
+  slogan text default '',
+  adresse text default '',
+  telephone text default '',
+  telephone_2 text default '',
+  email text default '',
+  site_web text default '',
+  ninea text default '',
+
+  horaires jsonb not null default '{
+    "lundi":    {"actif": true,  "debut": "08:00", "fin": "20:00"},
+    "mardi":    {"actif": true,  "debut": "08:00", "fin": "20:00"},
+    "mercredi": {"actif": true,  "debut": "08:00", "fin": "20:00"},
+    "jeudi":    {"actif": true,  "debut": "08:00", "fin": "20:00"},
+    "vendredi": {"actif": true,  "debut": "08:00", "fin": "20:00"},
+    "samedi":   {"actif": true,  "debut": "09:00", "fin": "18:00"},
+    "dimanche": {"actif": false, "debut": "09:00", "fin": "13:00"}
+  }'::jsonb,
+
+  couleur_primaire text default '#0A5C3E',
+  couleur_secondaire text default '#C9922A',
+  logo_url text default '',
+
+  facebook text default '',
+  instagram text default '',
+  whatsapp text default '',
+  linkedin text default '',
+
+  date_mise_a_jour timestamptz not null default now(),
+
+  constraint clinique_singleton check (id = 1)
+);
+
+alter table public.clinique enable row level security;
+
+drop policy if exists "clinique_select_public" on public.clinique;
+create policy "clinique_select_public" on public.clinique for select
+  using (true);
+
+drop policy if exists "clinique_update_admin" on public.clinique;
+create policy "clinique_update_admin" on public.clinique for update
+  using (public.current_user_role() = 'admin');
+
+drop policy if exists "clinique_insert_admin" on public.clinique;
+create policy "clinique_insert_admin" on public.clinique for insert
+  with check (public.current_user_role() = 'admin');
+
+insert into public.clinique (id)
+values (1)
+on conflict (id) do nothing;
+
+do $$ begin
   if not exists (
     select 1 from pg_publication_tables
     where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'rendezvous'

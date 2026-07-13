@@ -66,7 +66,7 @@ function ModalNouveauPatient({ onClose, onSave, medecins }) {
       })
       onClose()
     } catch (e) {
-      setErreur('Erreur lors de l\'enregistrement.')
+      setErreur(e.message ? `Erreur : ${e.message}` : 'Erreur lors de l\'enregistrement.')
     } finally {
       setSauvegarde(false)
     }
@@ -237,7 +237,7 @@ function ModalDetailPatient({ patient, onClose, onUpdate, medecins }) {
       setTimeout(() => setSucces(false), 2000)
       onUpdate()
     } catch (e) {
-      setErreur('Impossible de sauvegarder.')
+      setErreur(e.message ? `Impossible de sauvegarder : ${e.message}` : 'Impossible de sauvegarder.')
     } finally {
       setSauvegarde(false)
     }

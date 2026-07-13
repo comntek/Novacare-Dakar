@@ -161,6 +161,27 @@ const mapMessage = (row) =>
     dateEnvoi: row.date_envoi,
   }
 
+const mapClinique = (row) =>
+  row && {
+    nomClinique: row.nom_clinique,
+    slogan: row.slogan,
+    adresse: row.adresse,
+    telephone: row.telephone,
+    telephone2: row.telephone_2,
+    email: row.email,
+    siteWeb: row.site_web,
+    ninea: row.ninea,
+    horaires: row.horaires,
+    couleurPrimaire: row.couleur_primaire,
+    couleurSecondaire: row.couleur_secondaire,
+    logoUrl: row.logo_url,
+    facebook: row.facebook,
+    instagram: row.instagram,
+    whatsapp: row.whatsapp,
+    linkedin: row.linkedin,
+    dateMiseAJour: row.date_mise_a_jour,
+  }
+
 const mapArticle = (row) =>
   row && {
     id: row.id,
@@ -180,9 +201,19 @@ const mapArticle = (row) =>
 // ══════════════════════════════════════════════════════════
 
 export const getPatients = async () => {
-  const { data, error } = await supabase.from('patients').select('*')
-  if (error) throw error
-  return data.map(mapPatient)
+  // Un utilisateur qui s'est inscrit via /inscription obtient une fiche
+  // `patients` (id = son uid Auth). S'il est ensuite promu admin/médecin/
+  // secrétaire, cette fiche reste en base mais ne doit plus apparaître
+  // dans les listes de patients — sinon le personnel se voit lui-même
+  // (ou d'autres membres du personnel) listé comme patient.
+  const [{ data: patients, error: errP }, { data: staff, error: errU }] = await Promise.all([
+    supabase.from('patients').select('*'),
+    supabase.from('utilisateurs').select('id').neq('role', 'patient'),
+  ])
+  if (errP) throw errP
+  if (errU) throw errU
+  const staffIds = new Set((staff || []).map((u) => u.id))
+  return patients.filter((p) => !staffIds.has(p.id)).map(mapPatient)
 }
 
 export const getPatientById = async (id) => {
@@ -192,12 +223,14 @@ export const getPatientById = async (id) => {
 }
 
 export const getPatientsByMedecin = async (medecinId) => {
-  const { data, error } = await supabase
-    .from('patients')
-    .select('*')
-    .eq('medecin_referent_id', medecinId)
-  if (error) throw error
-  return data.map(mapPatient)
+  const [{ data: patients, error: errP }, { data: staff, error: errU }] = await Promise.all([
+    supabase.from('patients').select('*').eq('medecin_referent_id', medecinId),
+    supabase.from('utilisateurs').select('id').neq('role', 'patient'),
+  ])
+  if (errP) throw errP
+  if (errU) throw errU
+  const staffIds = new Set((staff || []).map((u) => u.id))
+  return patients.filter((p) => !staffIds.has(p.id)).map(mapPatient)
 }
 
 export const createPatient = async (data) => {
@@ -666,14 +699,10 @@ export const deleteArticle = async (id) => {
   if (error) throw error
 }
 
-const mapClinique = (row) => row && {
-  nomClinique: row.nom_clinique, slogan: row.slogan, adresse: row.adresse,
-  telephone: row.telephone, telephone2: row.telephone_2, email: row.email,
-  siteWeb: row.site_web, ninea: row.ninea, horaires: row.horaires,
-  couleurPrimaire: row.couleur_primaire, couleurSecondaire: row.couleur_secondaire,
-  logoUrl: row.logo_url, facebook: row.facebook, instagram: row.instagram,
-  whatsapp: row.whatsapp, linkedin: row.linkedin, dateMiseAJour: row.date_mise_a_jour,
-}
+// ══════════════════════════════════════════════════════════
+// CLINIQUE  (config globale, une seule ligne — id fixe = 1)
+// Lue par toutes les pages publiques + écrite depuis Admin > Paramètres.
+// ══════════════════════════════════════════════════════════
 
 export const getClinique = async () => {
   const { data, error } = await supabase.from('clinique').select('*').eq('id', 1).maybeSingle()
@@ -683,12 +712,27 @@ export const getClinique = async () => {
 
 export const updateClinique = async (data) => {
   const payload = { date_mise_a_jour: new Date().toISOString() }
-  const map = { nomClinique: 'nom_clinique', slogan: 'slogan', adresse: 'adresse',
-    telephone: 'telephone', telephone2: 'telephone_2', email: 'email', siteWeb: 'site_web',
-    ninea: 'ninea', horaires: 'horaires', couleurPrimaire: 'couleur_primaire',
-    couleurSecondaire: 'couleur_secondaire', logoUrl: 'logo_url', facebook: 'facebook',
-    instagram: 'instagram', whatsapp: 'whatsapp', linkedin: 'linkedin' }
-  Object.entries(map).forEach(([js, col]) => { if (data[js] !== undefined) payload[col] = data[js] })
+  const map = {
+    nomClinique: 'nom_clinique',
+    slogan: 'slogan',
+    adresse: 'adresse',
+    telephone: 'telephone',
+    telephone2: 'telephone_2',
+    email: 'email',
+    siteWeb: 'site_web',
+    ninea: 'ninea',
+    horaires: 'horaires',
+    couleurPrimaire: 'couleur_primaire',
+    couleurSecondaire: 'couleur_secondaire',
+    logoUrl: 'logo_url',
+    facebook: 'facebook',
+    instagram: 'instagram',
+    whatsapp: 'whatsapp',
+    linkedin: 'linkedin',
+  }
+  Object.entries(map).forEach(([js, col]) => {
+    if (data[js] !== undefined) payload[col] = data[js]
+  })
   const { error } = await supabase.from('clinique').update(payload).eq('id', 1)
   if (error) throw error
   return getClinique()
