@@ -225,10 +225,10 @@ function ModalDetailUtilisateur({ utilisateur, onClose, onUpdate }) {
                 {utilisateur.telephone}
               </div>
             )}
-            {utilisateur.specialite && (
+            {(utilisateur.specialiteNom || utilisateur.specialite) && (
               <div className="flex items-center gap-2 text-sm text-neutral-text">
                 <Shield className="w-4 h-4 text-neutral-muted" />
-                {utilisateur.specialite}
+                {utilisateur.specialiteNom || utilisateur.specialite}
               </div>
             )}
           </div>

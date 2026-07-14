@@ -350,7 +350,7 @@ export default function PriseRdvPage() {
                   <option value="">Choisir un médecin...</option>
                   {medecins.map((m) => (
                     <option key={m.id} value={m.id}>
-                      Dr. {m.prenom} {m.nom} — {m.specialite || 'Généraliste'}
+                      Dr. {m.prenom} {m.nom} — {m.specialiteNom || m.specialite || 'Généraliste'}
                     </option>
                   ))}
                 </select>

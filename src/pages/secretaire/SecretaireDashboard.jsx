@@ -86,7 +86,7 @@ export function SecretaireDashboard() {
 
   // Prochains RDV du jour non terminés
   const prochainsRdvs = rdvsAujourdhui
-    .filter((r) => !['termine', 'annule'].includes(r.statut))
+    .filter((r) => !['termine', 'annule', 'absent'].includes(r.statut))
     .sort((a, b) => (a.heure || '').localeCompare(b.heure || ''))
     .slice(0, 5)
 

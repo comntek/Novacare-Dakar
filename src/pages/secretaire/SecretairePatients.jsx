@@ -165,7 +165,7 @@ function ModalNouveauPatient({ onClose, onSave, medecins }) {
               <option value="">-- Aucun médecin assigné --</option>
               {medecins.map((m) => (
                 <option key={m.id} value={m.id}>
-                  Dr. {m.prenom} {m.nom} — {m.specialite || 'Généraliste'}
+                  Dr. {m.prenom} {m.nom} — {m.specialiteNom || m.specialite || 'Généraliste'}
                 </option>
               ))}
             </select>
@@ -326,7 +326,7 @@ function ModalDetailPatient({ patient, onClose, onUpdate, medecins }) {
               <option value="">-- Aucun médecin assigné --</option>
               {medecins.map((m) => (
                 <option key={m.id} value={m.id}>
-                  Dr. {m.prenom} {m.nom} — {m.specialite || 'Généraliste'}
+                  Dr. {m.prenom} {m.nom} — {m.specialiteNom || m.specialite || 'Généraliste'}
                 </option>
               ))}
             </select>

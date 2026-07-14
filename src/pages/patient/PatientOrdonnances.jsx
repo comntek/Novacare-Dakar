@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
 import {
   ClipboardList, AlertCircle, Loader2,
-  Calendar, Pill,
+  Calendar, Pill, Download,
 } from 'lucide-react'
-import { getConsultationsByPatient } from '../../services/firestore'
+import { getConsultationsByPatient, getPatientById } from '../../services/firestore'
 import { useAuthStore } from '../../store/authStore'
+import { useClinicStore } from '../../store/clinicStore'
+import { genererOrdonnancePdf } from '../../utils/genererOrdonnancePdf'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
 
@@ -16,6 +18,8 @@ function toDate(val) {
 
 export function PatientOrdonnances() {
   const { user }        = useAuthStore()
+  const { data: clinique } = useClinicStore()
+  const [patient,       setPatient]       = useState(null)
   const [consultations, setConsultations] = useState([])
   const [chargement,    setChargement]    = useState(true)
   const [erreur,        setErreur]        = useState(null)
@@ -26,7 +30,11 @@ export function PatientOrdonnances() {
       setChargement(true)
       setErreur(null)
       try {
-        const data = await getConsultationsByPatient(user.uid)
+        const [p, data] = await Promise.all([
+          getPatientById(user.uid),
+          getConsultationsByPatient(user.uid),
+        ])
+        setPatient(p)
         setConsultations(data.filter((c) => c.ordonnances?.length > 0))
       } catch (e) {
         setErreur('Impossible de charger vos ordonnances.')
@@ -88,9 +96,18 @@ export function PatientOrdonnances() {
                   </p>
                   <p className="text-sm text-neutral-muted mt-0.5">{c.medecinNom}</p>
                 </div>
-                <div className="text-right">
-                  <p className="text-xs text-neutral-muted">Diagnostic</p>
-                  <p className="text-sm font-medium text-neutral-text">{c.diagnostic}</p>
+                <div className="text-right flex items-center gap-3">
+                  <div>
+                    <p className="text-xs text-neutral-muted">Diagnostic</p>
+                    <p className="text-sm font-medium text-neutral-text">{c.diagnostic}</p>
+                  </div>
+                  <button
+                    onClick={() => genererOrdonnancePdf(c, patient, clinique)}
+                    className="btn-icon"
+                    title="Télécharger en PDF"
+                  >
+                    <Download className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
 
@@ -107,8 +124,9 @@ export function PatientOrdonnances() {
                     <div className="flex-1 min-w-0">
                       <p className="font-semibold text-neutral-text">{o.medicament}</p>
                       <p className="text-sm text-neutral-muted mt-0.5">
-                        {o.posologie}
-                        {o.duree ? ` · ${o.duree}` : ''}
+                        {o.duree || o.posologie
+                          ? [o.posologie, o.duree].filter(Boolean).join(' · ')
+                          : 'Posologie à indiquer par le pharmacien'}
                       </p>
                     </div>
                   </div>

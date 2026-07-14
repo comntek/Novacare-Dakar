@@ -3,7 +3,7 @@ import {
   LayoutDashboard, Calendar, Users, FileText,
   MessageSquare, Settings, LogOut, Activity,
   CreditCard, UserCheck, BarChart2, Bell,
-  Stethoscope, ClipboardList, Video, X,
+  Stethoscope, ClipboardList, Video, X, Building2, FlaskConical, FileSignature
 } from 'lucide-react'
 import { useAuthStore } from '../../store/authStore'
 import { supabase } from '../../services/supabase'
@@ -29,6 +29,9 @@ const MENUS = {
     { to: '/medecin/consultation',     label: 'Consultations',    icon: Stethoscope     },
     { to: '/medecin/patients',         label: 'Mes patients',     icon: Users           },
     { to: '/medecin/teleconsultation', label: 'Téléconsultation', icon: Video           },
+    { to: '/medecin/examens',          label: 'Examens',          icon: FlaskConical    },
+    { to: '/medecin/documents',        label: 'Documents',        icon: FileSignature   },
+    { to: '/medecin/ordonnances',      label: 'Ordonnances',      icon: ClipboardList   },
     { to: '/medecin/messagerie',       label: 'Messagerie',       icon: MessageSquare   },
     { to: '/medecin/disponibilites',   label: 'Disponibilités',   icon: Settings        },
   ],
@@ -52,6 +55,8 @@ const MENUS = {
     { to: '/admin/journal',       label: 'Journal',         icon: Activity        },
     { to: '/admin/contenu',       label: 'Contenu',         icon: FileText        },
     { to: '/admin/parametres',    label: 'Paramètres',      icon: Settings        },
+    { to: '/admin/specialites',   label: 'Spécialités',     icon: Stethoscope     },
+    { to: '/admin/cabinets',      label: 'Cabinets',        icon: Building2       },
   ],
 }
 

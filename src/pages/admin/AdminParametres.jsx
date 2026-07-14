@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react'
 import {
-  Building, Clock, Palette, Share2, Shield, CreditCard,
+  Building, Clock, Palette, Share2, Shield, CreditCard, Lock,
   Save, Loader2, CheckCircle, AlertCircle,
 } from 'lucide-react'
-import { updateClinique } from '../../services/firestore'
+import { updateClinique, getRolePermissions, updateRolePermission } from '../../services/firestore'
 import { useClinicStore } from '../../store/clinicStore'
 
 const TABS = [
@@ -13,7 +13,107 @@ const TABS = [
   { id: 'reseaux',     label: 'Réseaux sociaux',   icon: Share2   },
   { id: 'securite',    label: 'Sécurité',          icon: Shield   },
   { id: 'facturation', label: 'Facturation',       icon: CreditCard },
+  { id: 'permissions', label: 'Permissions',       icon: Lock     },
 ]
+
+const ROLES = ['admin', 'secretaire', 'medecin', 'patient']
+const ROLE_LABELS = { admin: 'Admin', secretaire: 'Secrétaire', medecin: 'Médecin', patient: 'Patient' }
+const ACTION_LABELS = {
+  'utilisateurs.gerer': 'Gérer les utilisateurs',
+  'dossier.voir_tous': 'Voir tous les dossiers médicaux',
+  'dossier.voir_propre': 'Voir son propre dossier',
+  'ordonnance.creer': 'Créer une ordonnance',
+  'ordonnance.modifier_signee': 'Modifier une ordonnance signée',
+  'rdv.gerer_tous': 'Gérer tous les rendez-vous',
+  'rdv.gerer_siens': 'Gérer ses propres rendez-vous',
+  'chat.patient_medecin': 'Chat patient-médecin',
+  'teleconsultation.lancer': 'Lancer une téléconsultation',
+  'teleconsultation.preparer': 'Préparer une téléconsultation',
+  'teleconsultation.rejoindre': 'Rejoindre une téléconsultation',
+  'paiements.voir': 'Voir les paiements',
+  'paiements.voir_propres': 'Voir ses propres paiements',
+  'statistiques.consulter': 'Consulter les statistiques',
+  'statistiques.consulter_limite': 'Consulter les statistiques (limité)',
+}
+
+function PermissionsPanel() {
+  const [permissions, setPermissions] = useState([])
+  const [chargement, setChargement] = useState(true)
+  const [enCours, setEnCours] = useState(null)
+
+  useEffect(() => {
+    getRolePermissions().then(setPermissions).finally(() => setChargement(false))
+  }, [])
+
+  const toggle = async (perm) => {
+    setEnCours(perm.id)
+    try {
+      await updateRolePermission(perm.id, !perm.autorise)
+      setPermissions((prev) =>
+        prev.map((p) => (p.id === perm.id ? { ...p, autorise: !p.autorise } : p))
+      )
+    } finally {
+      setEnCours(null)
+    }
+  }
+
+  if (chargement) return <p className="text-sm text-neutral-muted">Chargement...</p>
+
+  const actions = [...new Set(permissions.map((p) => p.action))]
+
+  return (
+    <>
+      <h2 className="section-title">Permissions par rôle</h2>
+      <p className="text-xs text-neutral-muted mb-4">
+        Ces réglages contrôlent l'affichage des actions sensibles dans l'application.
+        Ils ne remplacent pas les règles de sécurité de la base de données.
+      </p>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-neutral-subtle border-b border-neutral-border">
+              <th className="py-2 pr-4">Action</th>
+              {ROLES.map((r) => (
+                <th key={r} className="py-2 px-3 text-center">{ROLE_LABELS[r]}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {actions.map((action) => (
+              <tr key={action} className="border-b border-neutral-border last:border-0">
+                <td className="py-2 pr-4 text-neutral-text">{ACTION_LABELS[action] || action}</td>
+                {ROLES.map((role) => {
+                  const perm = permissions.find((p) => p.action === action && p.role === role)
+                  if (!perm) {
+                    return <td key={role} className="py-2 px-3 text-center text-neutral-muted">—</td>
+                  }
+                  return (
+                    <td key={role} className="py-2 px-3 text-center">
+                      <button
+                        onClick={() => toggle(perm)}
+                        disabled={enCours === perm.id}
+                        className={`
+                          w-10 h-5 rounded-full relative transition-all duration-200
+                          ${perm.autorise ? 'bg-primary' : 'bg-neutral-border'}
+                          ${enCours === perm.id ? 'opacity-50' : ''}
+                        `}
+                      >
+                        <span className={`
+                          absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-all duration-200
+                          ${perm.autorise ? 'left-5' : 'left-0.5'}
+                        `} />
+                      </button>
+                    </td>
+                  )
+                })}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </>
+  )
+}
 
 const JOURS = [
   { key: 'lundi',    label: 'Lundi'    },
@@ -325,6 +425,8 @@ export function AdminParametres() {
               </div>
             </>
           )}
+
+          {onglet === 'permissions' && <PermissionsPanel />}
 
           {['general', 'horaires', 'apparence', 'reseaux'].includes(onglet) && (
             <div className="pt-2 border-t border-neutral-border">

@@ -23,6 +23,8 @@ import AdminParametres     from './pages/admin/AdminParametres'
 import AdminJournal        from './pages/admin/AdminJournal'
 import AdminContenu        from './pages/admin/AdminContenu'
 import AdminMessagerie     from './pages/admin/AdminMessagerie'
+import AdminSpecialites    from './pages/admin/AdminSpecialites'
+import AdminCabinets       from './pages/admin/AdminCabinets'
 
 // ── Médecin ───────────────────────────────────────────────
 import MedecinDashboard        from './pages/medecin/MedecinDashboard'
@@ -32,6 +34,9 @@ import MedecinPatients         from './pages/medecin/MedecinPatients'
 import MedecinMessagerie       from './pages/medecin/MedecinMessagerie'
 import MedecinTeleconsultation from './pages/medecin/MedecinTeleconsultation'
 import MedecinDisponibilites   from './pages/medecin/MedecinDisponibilites'
+import MedecinExamens          from './pages/medecin/MedecinExamens'
+import MedecinDocuments        from './pages/medecin/MedecinDocuments'
+import MedecinOrdonnances      from './pages/medecin/MedecinOrdonnances'
 
 // ── Secrétaire ────────────────────────────────────────────
 import SecretaireDashboard  from './pages/secretaire/SecretaireDashboard'
@@ -95,13 +100,8 @@ function RedirectByRole() {
 
 // ── App ───────────────────────────────────────────────────
 export default function App() {
-  // Initialise et écoute la session Supabase, alimente useAuthStore.
-  // (remplace l'ancien onAuthStateChanged Firebase inline)
   useAuth()
 
-  // Charge les infos de la clinique (nom, coordonnées, horaires...) une
-  // seule fois au démarrage — consommées par le header/footer publics,
-  // la page Contact et Admin > Paramètres.
   const loadClinic = useClinicStore((s) => s.load)
   useEffect(() => { loadClinic() }, [loadClinic])
 
@@ -135,7 +135,9 @@ export default function App() {
         <Route path="parametres"   element={<AdminParametres />}    />
         <Route path="journal"      element={<AdminJournal />}       />
         <Route path="contenu"      element={<AdminContenu />}       />
-        <Route path="messagerie" element={<AdminMessagerie />} />
+        <Route path="messagerie"   element={<AdminMessagerie />} />
+        <Route path="cabinets"     element={<AdminCabinets />} />
+        <Route path="specialites"  element={<AdminSpecialites />} />
       </Route>
 
       {/* ── Médecin ─────────────────────────────────────── */}
@@ -147,10 +149,15 @@ export default function App() {
         <Route index                   element={<MedecinDashboard />}        />
         <Route path="agenda"           element={<MedecinAgenda />}           />
         <Route path="consultation"     element={<MedecinConsultation />}     />
+        <Route path="examens"          element={<MedecinExamens />}          />
+        <Route path="documents"        element={<MedecinDocuments />}        />
         <Route path="patients"         element={<MedecinPatients />}         />
         <Route path="messagerie"       element={<MedecinMessagerie />}       />
         <Route path="teleconsultation" element={<MedecinTeleconsultation />} />
+        <Route path="ordonnances"      element={<MedecinOrdonnances />}      />
+        <Route path="documents"        element={<MedecinDocuments />}        />
         <Route path="disponibilites"   element={<MedecinDisponibilites />}   />
+        <Route path="ordonnances"      element={<MedecinOrdonnances />}      />
       </Route>
 
       {/* ── Secrétaire ──────────────────────────────────── */}

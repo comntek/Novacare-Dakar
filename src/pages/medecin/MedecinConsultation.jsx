@@ -8,6 +8,7 @@ import {
   getRdvsByMedecin, getPatientById,
   getConsultationsByPatient, createConsultation,
   updateConsultation, updateStatutRdv, createFacture,
+  updatePatient, createExamen,
 } from '../../services/firestore'
 import { useAuthStore } from '../../store/authStore'
 import { format, isToday } from 'date-fns'
@@ -31,19 +32,52 @@ function ModalConsultation({ rdv, patient, consultationExistante, onClose, onSav
     consultationExistante?.ordonnances || []
   )
   const [nouvelleOrdo, setNouvelleOrdo] = useState({
-    medicament: '', posologie: '', duree: '',
+    medicament: '', duree: '',
   })
+  const [constantes, setConstantes] = useState({
+    poids: consultationExistante?.constantes?.poids || '',
+    taille: consultationExistante?.constantes?.taille || '',
+    tension: consultationExistante?.constantes?.tension || '',
+    temperature: consultationExistante?.constantes?.temperature || '',
+    pouls: consultationExistante?.constantes?.pouls || '',
+  })
+  const [vaccinsAjoutes, setVaccinsAjoutes] = useState([])
+  const [nouveauVaccin,  setNouveauVaccin]  = useState({ nom: '', date: '' })
+  const [examensAPrescrire, setExamensAPrescrire] = useState([])
+  const [nouvelExamen, setNouvelExamen] = useState({ type: 'analyse', designation: '', instructions: '' })
   const [sauvegarde, setSauvegarde] = useState(false)
   const [terminer,   setTerminer]   = useState(false)
   const [erreur,     setErreur]     = useState(null)
 
-  const update     = (k, v) => setForm((f) => ({ ...f, [k]: v }))
-  const updateOrdo = (k, v) => setNouvelleOrdo((o) => ({ ...o, [k]: v }))
+  const update       = (k, v) => setForm((f) => ({ ...f, [k]: v }))
+  const updateOrdo   = (k, v) => setNouvelleOrdo((o) => ({ ...o, [k]: v }))
+  const updateConst  = (k, v) => setConstantes((c) => ({ ...c, [k]: v }))
+  const updateVaccin = (k, v) => setNouveauVaccin((vc) => ({ ...vc, [k]: v }))
+
+  const ajouterVaccin = () => {
+    if (!nouveauVaccin.nom) return
+    setVaccinsAjoutes((prev) => [...prev, { ...nouveauVaccin, date: nouveauVaccin.date || format(new Date(), 'yyyy-MM-dd') }])
+    setNouveauVaccin({ nom: '', date: '' })
+  }
+
+  const supprimerVaccin = (i) =>
+    setVaccinsAjoutes((prev) => prev.filter((_, idx) => idx !== i))
+
+  const updateExamenForm = (k, v) => setNouvelExamen((ex) => ({ ...ex, [k]: v }))
+
+  const ajouterExamen = () => {
+    if (!nouvelExamen.designation) return
+    setExamensAPrescrire((prev) => [...prev, nouvelExamen])
+    setNouvelExamen({ type: 'analyse', designation: '', instructions: '' })
+  }
+
+  const supprimerExamen = (i) =>
+    setExamensAPrescrire((prev) => prev.filter((_, idx) => idx !== i))
 
   const ajouterOrdonnance = () => {
     if (!nouvelleOrdo.medicament) return
     setOrdonnances((prev) => [...prev, { ...nouvelleOrdo }])
-    setNouvelleOrdo({ medicament: '', posologie: '', duree: '' })
+    setNouvelleOrdo({ medicament: '', duree: '' })
   }
 
   const supprimerOrdonnance = (i) =>
@@ -57,9 +91,10 @@ function ModalConsultation({ rdv, patient, consultationExistante, onClose, onSav
     terminerConsult ? setTerminer(true) : setSauvegarde(true)
     setErreur(null)
     try {
-      await onSave({
+      const consultationId = await onSave({
         ...form,
         ordonnances,
+        constantes,
         rdvId:      rdv.id,
         patientId:  rdv.patientId,
         patientNom: rdv.patientNom,
@@ -69,6 +104,23 @@ function ModalConsultation({ rdv, patient, consultationExistante, onClose, onSav
         statut:     terminerConsult ? 'termine' : 'en_cours',
         consultationId: consultationExistante?.id || null,
       }, terminerConsult)
+      if (vaccinsAjoutes.length > 0) {
+        await updatePatient(rdv.patientId, {
+          vaccins: [...(patient?.vaccins || []), ...vaccinsAjoutes],
+        })
+      }
+      if (examensAPrescrire.length > 0) {
+        await Promise.all(examensAPrescrire.map((ex) => createExamen({
+          patientId:   rdv.patientId,
+          patientNom:  rdv.patientNom,
+          medecinId:   medecin.uid,
+          medecinNom:  `Dr. ${medecin.prenom} ${medecin.nom}`,
+          consultationId,
+          type:        ex.type,
+          designation: ex.designation,
+          instructions: ex.instructions,
+        })))
+      }
       onClose()
     } catch (e) {
       setErreur('Erreur lors de la sauvegarde.')
@@ -147,6 +199,28 @@ function ModalConsultation({ rdv, patient, consultationExistante, onClose, onSav
             />
           </div>
 
+          {/* Constantes */}
+          <div>
+            <label className="form-label">Constantes</label>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+              <input className="form-input" value={constantes.poids}
+                onChange={(e) => updateConst('poids', e.target.value)}
+                placeholder="Poids (kg)" />
+              <input className="form-input" value={constantes.taille}
+                onChange={(e) => updateConst('taille', e.target.value)}
+                placeholder="Taille (cm)" />
+              <input className="form-input" value={constantes.tension}
+                onChange={(e) => updateConst('tension', e.target.value)}
+                placeholder="Tension (ex: 12/8)" />
+              <input className="form-input" value={constantes.temperature}
+                onChange={(e) => updateConst('temperature', e.target.value)}
+                placeholder="Température (°C)" />
+              <input className="form-input" value={constantes.pouls}
+                onChange={(e) => updateConst('pouls', e.target.value)}
+                placeholder="Pouls (bpm)" />
+            </div>
+          </div>
+
           {/* Diagnostic */}
           <div>
             <label className="form-label">Diagnostic *</label>
@@ -185,9 +259,7 @@ function ModalConsultation({ rdv, patient, consultationExistante, onClose, onSav
                   >
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-neutral-text">{o.medicament}</p>
-                      <p className="text-xs text-neutral-muted">
-                        {o.posologie} · {o.duree}
-                      </p>
+                      {o.duree && <p className="text-xs text-neutral-muted">{o.duree}</p>}
                     </div>
                     <button
                       onClick={() => supprimerOrdonnance(i)}
@@ -201,18 +273,15 @@ function ModalConsultation({ rdv, patient, consultationExistante, onClose, onSav
             </div>
 
             {/* Ajouter ordonnance */}
+            <p className="text-xs text-neutral-muted mb-2">
+              La posologie est indiquée par le pharmacien à la délivrance.
+            </p>
             <div className="grid grid-cols-3 gap-2">
               <input
-                className="form-input col-span-3 sm:col-span-1"
+                className="form-input col-span-2"
                 value={nouvelleOrdo.medicament}
                 onChange={(e) => updateOrdo('medicament', e.target.value)}
                 placeholder="Médicament"
-              />
-              <input
-                className="form-input"
-                value={nouvelleOrdo.posologie}
-                onChange={(e) => updateOrdo('posologie', e.target.value)}
-                placeholder="Posologie"
               />
               <input
                 className="form-input"
@@ -224,6 +293,114 @@ function ModalConsultation({ rdv, patient, consultationExistante, onClose, onSav
             <button
               onClick={ajouterOrdonnance}
               disabled={!nouvelleOrdo.medicament}
+              className="btn-outline btn-sm mt-2"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Ajouter
+            </button>
+          </div>
+
+          {/* Vaccins administrés */}
+          <div>
+            <label className="form-label">Vaccins administrés lors de cette consultation</label>
+            <div className="space-y-2 mb-3">
+              {vaccinsAjoutes.length === 0 ? (
+                <p className="text-sm text-neutral-muted">Aucun vaccin ajouté</p>
+              ) : (
+                vaccinsAjoutes.map((v, i) => (
+                  <div key={i} className="flex items-center gap-3 p-3 bg-neutral-bg rounded-xl">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-neutral-text">{v.nom}</p>
+                      <p className="text-xs text-neutral-muted">{v.date}</p>
+                    </div>
+                    <button
+                      onClick={() => supprimerVaccin(i)}
+                      className="btn-icon w-7 h-7 text-danger hover:bg-danger-50"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <input
+                className="form-input col-span-2"
+                value={nouveauVaccin.nom}
+                onChange={(e) => updateVaccin('nom', e.target.value)}
+                placeholder="Nom du vaccin"
+              />
+              <input
+                type="date"
+                className="form-input"
+                value={nouveauVaccin.date}
+                onChange={(e) => updateVaccin('date', e.target.value)}
+              />
+            </div>
+            <button
+              onClick={ajouterVaccin}
+              disabled={!nouveauVaccin.nom}
+              className="btn-outline btn-sm mt-2"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Ajouter
+            </button>
+          </div>
+
+          {/* Examens à prescrire */}
+          <div>
+            <label className="form-label">Examens à prescrire</label>
+            <div className="space-y-2 mb-3">
+              {examensAPrescrire.length === 0 ? (
+                <p className="text-sm text-neutral-muted">Aucun examen prescrit</p>
+              ) : (
+                examensAPrescrire.map((ex, i) => (
+                  <div key={i} className="flex items-center gap-3 p-3 bg-neutral-bg rounded-xl">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-neutral-text">
+                        {ex.designation}
+                        <span className="text-xs font-normal text-neutral-muted ml-2">
+                          ({ex.type === 'analyse' ? 'Analyse' : ex.type === 'imagerie' ? 'Imagerie' : 'Autre'})
+                        </span>
+                      </p>
+                      {ex.instructions && <p className="text-xs text-neutral-muted">{ex.instructions}</p>}
+                    </div>
+                    <button
+                      onClick={() => supprimerExamen(i)}
+                      className="btn-icon w-7 h-7 text-danger hover:bg-danger-50"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <select
+                className="form-input"
+                value={nouvelExamen.type}
+                onChange={(e) => updateExamenForm('type', e.target.value)}
+              >
+                <option value="analyse">Analyse</option>
+                <option value="imagerie">Imagerie</option>
+                <option value="autre">Autre</option>
+              </select>
+              <input
+                className="form-input col-span-2"
+                value={nouvelExamen.designation}
+                onChange={(e) => updateExamenForm('designation', e.target.value)}
+                placeholder="Ex: NFS, Radio thorax..."
+              />
+            </div>
+            <input
+              className="form-input mt-2"
+              value={nouvelExamen.instructions}
+              onChange={(e) => updateExamenForm('instructions', e.target.value)}
+              placeholder="Instructions (optionnel)"
+            />
+            <button
+              onClick={ajouterExamen}
+              disabled={!nouvelExamen.designation}
               className="btn-outline btn-sm mt-2"
             >
               <Plus className="w-3.5 h-3.5" />
@@ -329,10 +506,11 @@ export function MedecinConsultation() {
   }
 
   const handleSave = async (data, terminer) => {
-    if (data.consultationId) {
-      await updateConsultation(data.consultationId, data)
+    let consultationId = data.consultationId
+    if (consultationId) {
+      await updateConsultation(consultationId, data)
     } else {
-      await createConsultation(data)
+      consultationId = await createConsultation(data)
     }
     if (terminer) {
       await updateStatutRdv(data.rdvId, 'termine')
@@ -349,6 +527,7 @@ export function MedecinConsultation() {
       })
     }
     await charger()
+    return consultationId
   }
 
   const STATUTS_CONFIG = {

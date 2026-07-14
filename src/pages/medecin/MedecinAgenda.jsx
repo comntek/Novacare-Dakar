@@ -30,6 +30,7 @@ const STATUTS_COULEUR = {
   en_attente:      'bg-neutral-100 text-neutral-600 border-neutral-200',
   confirme:        'bg-info-100 text-info border-info-100',
   arrive:          'bg-warning-100 text-warning border-warning-100',
+  absent:          'bg-orange-100 text-orange-700 border-orange-200',
   en_consultation: 'bg-accent-100 text-accent border-accent-100',
   termine:         'bg-success-100 text-success border-success-100',
   annule:          'bg-danger-100 text-danger border-danger-100',
@@ -39,6 +40,7 @@ const STATUTS_LABELS = {
   en_attente:      'En attente',
   confirme:        'Confirmé',
   arrive:          'Arrivé',
+  absent:          'Absent',
   en_consultation: 'En consultation',
   termine:         'Terminé',
   annule:          'Annulé',
@@ -351,7 +353,7 @@ export function MedecinAgenda() {
         ) : (
           <div className="space-y-2">
             {rdvsDuJour.map((rdv) => {
-              const peutModifier = !['termine', 'annule', 'en_consultation'].includes(rdv.statut)
+              const peutModifier = !['termine', 'annule', 'en_consultation', 'absent'].includes(rdv.statut)
               return (
                 <div key={rdv.id} className="card flex items-center gap-4">
                   {/* Heure + type */}

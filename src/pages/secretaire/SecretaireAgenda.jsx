@@ -109,7 +109,7 @@ function ModalNouveauRdv({ datePre, onClose, onSave, patients, medecins }) {
             <label className="form-label">Médecin *</label>
             <select className="form-input" value={form.medecinId} onChange={(e) => update('medecinId', e.target.value)}>
               <option value="">-- Sélectionner --</option>
-              {medecins.map((m) => <option key={m.id} value={m.id}>Dr. {m.prenom} {m.nom}{m.specialite ? ` · ${m.specialite}` : ''}</option>)}
+              {medecins.map((m) => <option key={m.id} value={m.id}>Dr. {m.prenom} {m.nom}{(m.specialiteNom || m.specialite) ? ` · ${m.specialiteNom || m.specialite}` : ''}</option>)}
             </select>
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -342,7 +342,7 @@ function ModalRdvSite({ rdv, medecins, onClose, onConfirmer, onModifier, onSuppr
                   <option value="">-- Sélectionner --</option>
                   {medecins.map((m) => (
                     <option key={m.id} value={m.id}>
-                      Dr. {m.prenom} {m.nom}{m.specialite ? ` · ${m.specialite}` : ''}
+                      Dr. {m.prenom} {m.nom}{(m.specialiteNom || m.specialite) ? ` · ${m.specialiteNom || m.specialite}` : ''}
                     </option>
                   ))}
                 </select>

@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
 import {
   User, Save, Loader2, AlertCircle, CheckCircle,
-  Phone, Mail, MapPin, Heart, Shield,
+  Phone, Mail, MapPin, Heart, Shield, Clock,
+  Plus, X, Cigarette, Wine, ClipboardList, Pill, Activity,
 } from 'lucide-react'
-import { getPatientById, updatePatient } from '../../services/firestore'
+import { getPatientById, proposerModificationsPatient } from '../../services/firestore'
 import { useAuthStore } from '../../store/authStore'
 
 function toDate(val) {
@@ -14,8 +15,53 @@ function toDate(val) {
 
 const GROUPES_SANGUINS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
 
+function ListeEditable({ icone: Icone, titre, valeurs, onChange, placeholder }) {
+  const [saisie, setSaisie] = useState('')
+
+  const ajouter = () => {
+    if (!saisie.trim()) return
+    onChange([...valeurs, saisie.trim()])
+    setSaisie('')
+  }
+
+  const supprimer = (i) => onChange(valeurs.filter((_, idx) => idx !== i))
+
+  return (
+    <div>
+      <label className="form-label flex items-center gap-2">
+        <Icone className="w-3.5 h-3.5" /> {titre}
+      </label>
+      {valeurs.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-2">
+          {valeurs.map((v, i) => (
+            <span key={i} className="badge-neutral flex items-center gap-1.5">
+              {v}
+              <button onClick={() => supprimer(i)} className="hover:text-danger">
+                <X className="w-3 h-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
+      <div className="flex gap-2">
+        <input
+          className="form-input flex-1"
+          value={saisie}
+          onChange={(e) => setSaisie(e.target.value)}
+          onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); ajouter() } }}
+          placeholder={placeholder}
+        />
+        <button type="button" onClick={ajouter} className="btn-outline">
+          <Plus className="w-4 h-4" />
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export function PatientProfil() {
   const { user }     = useAuthStore()
+  const [patient,    setPatient]    = useState(null)
   const [form,       setForm]      = useState(null)
   const [chargement, setChargement] = useState(true)
   const [sauvegarde, setSauvegarde] = useState(false)
@@ -29,17 +75,31 @@ export function PatientProfil() {
       try {
         const data = await getPatientById(user.uid)
         if (data) {
+          setPatient(data)
+          // Si une proposition est en attente, on repart de celle-ci pour
+          // que le patient puisse continuer à l'ajuster ; sinon on repart
+          // du dossier officiel.
+          const source = data.donneesEnAttente?.champs || data
           setForm({
-            prenom:        data.prenom        || '',
-            nom:           data.nom           || '',
-            telephone:     data.telephone     || '',
-            email:         data.email         || '',
-            adresse:       data.adresse       || '',
-            sexe:          data.sexe          || '',
-            groupeSanguin: data.groupeSanguin || '',
-            dateNaissance: data.dateNaissance
-              ? toDate(data.dateNaissance)?.toISOString().split('T')[0]
+            prenom:        source.prenom        || '',
+            nom:           source.nom           || '',
+            telephone:     source.telephone     || '',
+            email:         source.email         || '',
+            adresse:       source.adresse       || '',
+            sexe:          source.sexe          || '',
+            groupeSanguin: source.groupeSanguin || '',
+            dateNaissance: source.dateNaissance
+              ? toDate(source.dateNaissance)?.toISOString().split('T')[0]
               : '',
+            allergies:            source.allergies            || [],
+            antecedents:          source.antecedents           || [],
+            maladiesChroniques:   source.maladiesChroniques    || [],
+            traitementsHabituels: source.traitementsHabituels  || [],
+            habitudesVie: {
+              tabac:   source.habitudesVie?.tabac   || 'non',
+              alcool:  source.habitudesVie?.alcool  || 'non',
+              autres:  source.habitudesVie?.autres  || '',
+            },
           })
         }
       } catch (e) {
@@ -56,13 +116,18 @@ export function PatientProfil() {
     setSucces(false)
   }
 
+  const updateHabitude = (k, v) => {
+    setForm((f) => ({ ...f, habitudesVie: { ...f.habitudesVie, [k]: v } }))
+    setSucces(false)
+  }
+
   const handleSave = async () => {
     if (!user?.uid || !form) return
     setSauvegarde(true)
     setErreur(null)
     setSucces(false)
     try {
-      await updatePatient(user.uid, {
+      await proposerModificationsPatient(user.uid, {
         prenom:        form.prenom.trim(),
         nom:           form.nom.trim(),
         telephone:     form.telephone.trim(),
@@ -71,11 +136,17 @@ export function PatientProfil() {
         sexe:          form.sexe,
         groupeSanguin: form.groupeSanguin,
         dateNaissance: form.dateNaissance ? new Date(form.dateNaissance) : null,
+        allergies:            form.allergies,
+        antecedents:          form.antecedents,
+        maladiesChroniques:   form.maladiesChroniques,
+        traitementsHabituels: form.traitementsHabituels,
+        habitudesVie:         form.habitudesVie,
       })
+      setPatient((p) => ({ ...p, statutDossier: 'en_attente_validation' }))
       setSucces(true)
-      setTimeout(() => setSucces(false), 3000)
+      setTimeout(() => setSucces(false), 4000)
     } catch (e) {
-      setErreur('Impossible de sauvegarder les modifications.')
+      setErreur("Impossible d'envoyer vos modifications.")
     } finally {
       setSauvegarde(false)
     }
@@ -101,10 +172,11 @@ export function PatientProfil() {
     )
   }
 
-  // Calcul âge
   const age = form.dateNaissance
     ? Math.floor((Date.now() - new Date(form.dateNaissance).getTime()) / (1000 * 60 * 60 * 24 * 365.25))
     : null
+
+  const enAttente = patient?.statutDossier === 'en_attente_validation'
 
   return (
     <div className="space-y-6 animate-fade-in">
@@ -113,12 +185,14 @@ export function PatientProfil() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="page-title">Mon profil</h1>
-          <p className="page-subtitle">Gérez vos informations personnelles</p>
+          <p className="page-subtitle">
+            Vos informations et votre questionnaire santé — soumis à validation de votre médecin référent
+          </p>
         </div>
         <button onClick={handleSave} disabled={sauvegarde} className="btn-primary">
           {sauvegarde
-            ? <><Loader2 className="w-4 h-4 animate-spin" /> Sauvegarde...</>
-            : <><Save className="w-4 h-4" /> Enregistrer</>
+            ? <><Loader2 className="w-4 h-4 animate-spin" /> Envoi...</>
+            : <><Save className="w-4 h-4" /> Envoyer pour validation</>
           }
         </button>
       </div>
@@ -133,7 +207,25 @@ export function PatientProfil() {
       {succes && (
         <div className="alert-success">
           <CheckCircle className="w-4 h-4 flex-shrink-0" />
-          <p>Profil mis à jour avec succès.</p>
+          <p>Vos modifications ont été envoyées à votre médecin référent pour validation.</p>
+        </div>
+      )}
+
+      {enAttente && !succes && (
+        <div className="alert-warning flex items-center gap-2">
+          <Clock className="w-4 h-4 flex-shrink-0" />
+          <p>
+            Des modifications sont en attente de validation par votre médecin référent
+            {patient?.medecinReferentNom ? ` (${patient.medecinReferentNom})` : ''}.
+            Le dossier officiel n'est pas encore mis à jour.
+          </p>
+        </div>
+      )}
+
+      {!patient?.medecinReferentId && (
+        <div className="alert-info flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 flex-shrink-0" />
+          <p>Aucun médecin référent ne vous est encore assigné — contactez la clinique pour la validation de vos informations.</p>
         </div>
       )}
 
@@ -201,7 +293,6 @@ export function PatientProfil() {
             onChange={(e) => update('dateNaissance', e.target.value)} />
         </div>
 
-        {/* Sexe */}
         <div>
           <label className="form-label">Sexe</label>
           <div className="grid grid-cols-3 gap-3">
@@ -252,40 +343,28 @@ export function PatientProfil() {
         </div>
       </div>
 
-      {/* Informations médicales */}
+      {/* Groupe sanguin */}
       <div className="card space-y-4">
         <h2 className="section-title flex items-center gap-2">
           <Heart className="w-4 h-4 text-danger" />
-          Informations médicales
+          Groupe sanguin
         </h2>
 
-        {/* Groupe sanguin */}
-        <div>
-          <label className="form-label flex items-center gap-2">
-            <Shield className="w-3.5 h-3.5" /> Groupe sanguin
-          </label>
-          <div className="grid grid-cols-4 gap-2">
-            {GROUPES_SANGUINS.map((g) => (
-              <button
-                key={g}
-                type="button"
-                onClick={() => update('groupeSanguin', g)}
-                className={`py-2.5 rounded-xl text-sm font-bold border-2 transition-all duration-250
-                  ${form.groupeSanguin === g
-                    ? 'border-danger bg-danger-50 text-danger'
-                    : 'border-neutral-border bg-white text-neutral-subtle hover:border-danger/30'
-                  }`}
-              >
-                {g}
-              </button>
-            ))}
-          </div>
-          {form.groupeSanguin && (
-            <p className="text-xs text-neutral-muted mt-2 flex items-center gap-1.5">
-              <CheckCircle className="w-3.5 h-3.5 text-success" />
-              Groupe sanguin sélectionné : <strong>{form.groupeSanguin}</strong>
-            </p>
-          )}
+        <div className="grid grid-cols-4 gap-2">
+          {GROUPES_SANGUINS.map((g) => (
+            <button
+              key={g}
+              type="button"
+              onClick={() => update('groupeSanguin', g)}
+              className={`py-2.5 rounded-xl text-sm font-bold border-2 transition-all duration-250
+                ${form.groupeSanguin === g
+                  ? 'border-danger bg-danger-50 text-danger'
+                  : 'border-neutral-border bg-white text-neutral-subtle hover:border-danger/30'
+                }`}
+            >
+              {g}
+            </button>
+          ))}
         </div>
 
         <div className="p-4 bg-info-50 border border-info-100 rounded-2xl">
@@ -299,11 +378,92 @@ export function PatientProfil() {
         </div>
       </div>
 
+      {/* Questionnaire santé */}
+      <div className="card space-y-5">
+        <h2 className="section-title flex items-center gap-2">
+          <ClipboardList className="w-4 h-4 text-primary" />
+          Questionnaire santé
+        </h2>
+
+        <ListeEditable
+          icone={Shield}
+          titre="Allergies"
+          valeurs={form.allergies}
+          onChange={(v) => update('allergies', v)}
+          placeholder="Ex: Pénicilline, arachides..."
+        />
+
+        <ListeEditable
+          icone={Activity}
+          titre="Antécédents médicaux et chirurgicaux"
+          valeurs={form.antecedents}
+          onChange={(v) => update('antecedents', v)}
+          placeholder="Ex: Appendicectomie 2015..."
+        />
+
+        <ListeEditable
+          icone={Heart}
+          titre="Maladies chroniques déjà connues"
+          valeurs={form.maladiesChroniques}
+          onChange={(v) => update('maladiesChroniques', v)}
+          placeholder="Ex: Diabète type 2, hypertension..."
+        />
+
+        <ListeEditable
+          icone={Pill}
+          titre="Traitements habituels"
+          valeurs={form.traitementsHabituels}
+          onChange={(v) => update('traitementsHabituels', v)}
+          placeholder="Ex: Metformine 500mg/jour..."
+        />
+
+        <div>
+          <label className="form-label">Habitudes de vie</label>
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <div>
+              <p className="text-xs text-neutral-muted mb-1.5 flex items-center gap-1.5">
+                <Cigarette className="w-3.5 h-3.5" /> Tabac
+              </p>
+              <select
+                className="form-input w-full"
+                value={form.habitudesVie.tabac}
+                onChange={(e) => updateHabitude('tabac', e.target.value)}
+              >
+                <option value="non">Non-fumeur</option>
+                <option value="occasionnel">Occasionnel</option>
+                <option value="quotidien">Quotidien</option>
+              </select>
+            </div>
+            <div>
+              <p className="text-xs text-neutral-muted mb-1.5 flex items-center gap-1.5">
+                <Wine className="w-3.5 h-3.5" /> Alcool
+              </p>
+              <select
+                className="form-input w-full"
+                value={form.habitudesVie.alcool}
+                onChange={(e) => updateHabitude('alcool', e.target.value)}
+              >
+                <option value="non">Non</option>
+                <option value="occasionnel">Occasionnel</option>
+                <option value="regulier">Régulier</option>
+              </select>
+            </div>
+          </div>
+          <textarea
+            className="form-input w-full"
+            rows={2}
+            value={form.habitudesVie.autres}
+            onChange={(e) => updateHabitude('autres', e.target.value)}
+            placeholder="Autres habitudes (activité physique, alimentation...)"
+          />
+        </div>
+      </div>
+
       <div className="flex justify-end">
         <button onClick={handleSave} disabled={sauvegarde} className="btn-primary btn-lg">
           {sauvegarde
-            ? <><Loader2 className="w-5 h-5 animate-spin" /> Sauvegarde...</>
-            : <><Save className="w-5 h-5" /> Enregistrer les modifications</>
+            ? <><Loader2 className="w-5 h-5 animate-spin" /> Envoi...</>
+            : <><Save className="w-5 h-5" /> Envoyer pour validation</>
           }
         </button>
       </div>

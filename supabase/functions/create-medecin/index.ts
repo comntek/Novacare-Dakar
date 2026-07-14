@@ -1,21 +1,12 @@
 // @ts-nocheck
-// supabase/functions/create-utilisateur/index.ts
+// supabase/functions/create-medecin/index.ts
 //
-// Edge Function : crée un compte STAFF (admin ou secrétaire) — Auth + table
-// utilisateurs, avec le bon rôle dans user_metadata dès la création.
-//
-// Pourquoi cette fonction existe : avant, le seul moyen de créer un compte
-// avec login était /inscription (toujours role='patient', côté client) ou
-// create-medecin (role='medecin', admin uniquement). Il n'y avait AUCUN
-// moyen de créer un compte secrétaire ou admin depuis l'app. Tout compte
-// créé "à la main" depuis le Dashboard Supabase (Authentication > Add user)
-// se retrouvait donc avec role='patient' par défaut (valeur par défaut du
-// trigger handle_new_user quand user_metadata.role est absent) — d'où des
-// comptes secrétaire/admin qui apparaissaient comme "Patient" partout
-// dans l'app.
+// Edge Function : crée un compte MÉDECIN — Auth + table utilisateurs,
+// avec role='medecin' dès la création, et affecte specialite_id/cabinet_id/tarif.
+// Réservée à l'admin.
 //
 // Déploiement :
-//   supabase functions deploy create-utilisateur
+//   supabase functions deploy create-medecin
 
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -23,8 +14,6 @@ const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
-
-const ROLES_AUTORISES = ['admin', 'secretaire']
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -63,27 +52,21 @@ Deno.serve(async (req) => {
       .maybeSingle()
 
     if (profilError || callerProfil?.role !== 'admin') {
-      return json({ error: 'Seul un administrateur peut créer un compte.' }, 403)
+      return json({ error: 'Seul un administrateur peut créer un compte médecin.' }, 403)
     }
 
     const body = await req.json()
-    const { prenom, nom, email, password, role, telephone } = body
+    const { prenom, nom, email, password, specialiteId, cabinetId, telephone, tarif } = body
 
-    if (!prenom || !nom || !email || !password || !role) {
-      return json({ error: 'Champs obligatoires manquants.' }, 400)
-    }
-
-    if (!ROLES_AUTORISES.includes(role)) {
-      return json({
-        error: "Rôle invalide. Utilisez cette fonction uniquement pour 'admin' ou 'secretaire' — pour un médecin, utilisez Admin > Médecins > Nouveau médecin.",
-      }, 400)
+    if (!prenom || !nom || !email || !password || !specialiteId) {
+      return json({ error: 'Champs obligatoires manquants (prénom, nom, email, mot de passe, spécialité).' }, 400)
     }
 
     const { data: created, error: createError } = await adminClient.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
-      user_metadata: { prenom, nom, role },
+      user_metadata: { prenom, nom, role: 'medecin' },
     })
 
     if (createError) {
@@ -93,15 +76,20 @@ Deno.serve(async (req) => {
       return json({ error: message }, 400)
     }
 
-    if (telephone) {
-      const { error: updateError } = await adminClient
-        .from('utilisateurs')
-        .update({ telephone })
-        .eq('id', created.user.id)
+    const misAJour = {
+      specialite_id: specialiteId,
+      cabinet_id: cabinetId || null,
+    }
+    if (telephone) misAJour.telephone = telephone
+    if (tarif !== undefined) misAJour.tarif = tarif
 
-      if (updateError) {
-        return json({ error: updateError.message }, 500)
-      }
+    const { error: updateError } = await adminClient
+      .from('utilisateurs')
+      .update(misAJour)
+      .eq('id', created.user.id)
+
+    if (updateError) {
+      return json({ error: updateError.message }, 500)
     }
 
     return json({ id: created.user.id }, 200)

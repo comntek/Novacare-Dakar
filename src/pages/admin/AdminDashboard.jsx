@@ -129,7 +129,7 @@ export function AdminDashboard() {
   // Spécialités depuis les médecins réels
   const specialitesMap = {}
   medecins.forEach((m) => {
-    const s = m.specialite || 'Généraliste'
+    const s = m.specialiteNom || m.specialite || 'Généraliste'
     specialitesMap[s] = (specialitesMap[s] || 0) + 1
   })
   const specialitesData = Object.entries(specialitesMap).map(([name, value], i) => ({
@@ -145,7 +145,7 @@ export function AdminDashboard() {
     ).length
     return {
       nom:          `Dr. ${m.prenom} ${m.nom}`,
-      specialite:   m.specialite || '—',
+      specialite:   m.specialiteNom || m.specialite || '—',
       consultations,
     }
   })

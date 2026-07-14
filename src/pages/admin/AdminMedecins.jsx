@@ -5,20 +5,21 @@ import {
   ChevronRight, Star,
 } from 'lucide-react'
 import {
-  getMedecins, updateUtilisateur,
+  getMedecins, updateUtilisateur, getSpecialites, getCabinets,
 } from '../../services/firestore'
 import { supabase } from '../../services/supabase'
 
 // ── Modal nouveau médecin ─────────────────────────────────
-function ModalNouveauMedecin({ onClose, onSave }) {
+function ModalNouveauMedecin({ specialites, cabinets, onClose, onSave }) {
   const [form, setForm] = useState({
-    prenom:     '',
-    nom:        '',
-    email:      '',
-    password:   '',
-    specialite: '',
-    telephone:  '',
-    tarif:      '',
+    prenom:       '',
+    nom:          '',
+    email:        '',
+    password:     '',
+    specialiteId: '',
+    cabinetId:    '',
+    telephone:    '',
+    tarif:        '',
   })
   const [sauvegarde, setSauvegarde] = useState(false)
   const [erreur,     setErreur]     = useState(null)
@@ -26,7 +27,7 @@ function ModalNouveauMedecin({ onClose, onSave }) {
   const update = (k, v) => setForm((f) => ({ ...f, [k]: v }))
 
   const handleSubmit = async () => {
-    if (!form.prenom || !form.nom || !form.email || !form.password || !form.specialite) {
+    if (!form.prenom || !form.nom || !form.email || !form.password || !form.specialiteId) {
       setErreur('Tous les champs obligatoires doivent être remplis.')
       return
     }
@@ -41,7 +42,8 @@ function ModalNouveauMedecin({ onClose, onSave }) {
           nom: form.nom.trim(),
           email: form.email.trim(),
           password: form.password,
-          specialite: form.specialite.trim(),
+          specialiteId: form.specialiteId,
+          cabinetId: form.cabinetId || undefined,
           telephone: form.telephone.trim(),
           tarif: form.tarif ? parseInt(form.tarif) : undefined,
         },
@@ -103,11 +105,27 @@ function ModalNouveauMedecin({ onClose, onSave }) {
               placeholder="Minimum 6 caractères" />
           </div>
 
-          <div>
-            <label className="form-label">Spécialité *</label>
-            <input className="form-input" value={form.specialite}
-              onChange={(e) => update('specialite', e.target.value)}
-              placeholder="Cardiologie, Pédiatrie..." />
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="form-label">Spécialité *</label>
+              <select className="form-input" value={form.specialiteId}
+                onChange={(e) => update('specialiteId', e.target.value)}>
+                <option value="">Choisir...</option>
+                {specialites.map((s) => (
+                  <option key={s.id} value={s.id}>{s.nom}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="form-label">Cabinet</label>
+              <select className="form-input" value={form.cabinetId}
+                onChange={(e) => update('cabinetId', e.target.value)}>
+                <option value="">Aucun</option>
+                {cabinets.map((c) => (
+                  <option key={c.id} value={c.id}>{c.nom}</option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -141,10 +159,12 @@ function ModalNouveauMedecin({ onClose, onSave }) {
 }
 
 // ── Modal détail médecin ──────────────────────────────────
-function ModalDetailMedecin({ medecin, onClose, onUpdate }) {
-  const [actif,      setActif]      = useState(medecin.actif)
-  const [sauvegarde, setSauvegarde] = useState(false)
-  const [erreur,     setErreur]     = useState(null)
+function ModalDetailMedecin({ medecin, specialites, cabinets, onClose, onUpdate }) {
+  const [actif,        setActif]        = useState(medecin.actif)
+  const [specialiteId, setSpecialiteId] = useState(medecin.specialiteId || '')
+  const [cabinetId,    setCabinetId]    = useState(medecin.cabinetId || '')
+  const [sauvegarde,   setSauvegarde]   = useState(false)
+  const [erreur,       setErreur]       = useState(null)
 
   const handleToggleActif = async () => {
     setSauvegarde(true)
@@ -155,6 +175,20 @@ function ModalDetailMedecin({ medecin, onClose, onUpdate }) {
       onUpdate()
     } catch (e) {
       setErreur('Impossible de modifier le statut.')
+    } finally {
+      setSauvegarde(false)
+    }
+  }
+
+  const handleChangeAffectation = async (champ, valeur, setter) => {
+    setSauvegarde(true)
+    setErreur(null)
+    try {
+      await updateUtilisateur(medecin.id, { [champ]: valeur || null })
+      setter(valeur)
+      onUpdate()
+    } catch (e) {
+      setErreur("Impossible de modifier l'affectation.")
     } finally {
       setSauvegarde(false)
     }
@@ -189,15 +223,33 @@ function ModalDetailMedecin({ medecin, onClose, onUpdate }) {
           )}
 
           <div className="grid grid-cols-2 gap-3">
-            {[
-              { label: 'Spécialité', valeur: medecin.specialite || '—' },
-              { label: 'Tarif',      valeur: medecin.tarif ? `${medecin.tarif.toLocaleString('fr-FR')} FCFA` : '—' },
-            ].map(({ label, valeur }) => (
-              <div key={label} className="bg-neutral-bg rounded-xl p-3">
-                <p className="text-xs text-neutral-muted">{label}</p>
-                <p className="text-sm font-semibold text-neutral-text mt-0.5">{valeur}</p>
-              </div>
-            ))}
+            <div>
+              <label className="form-label">Spécialité</label>
+              <select className="form-input" value={specialiteId} disabled={sauvegarde}
+                onChange={(e) => handleChangeAffectation('specialite_id', e.target.value, setSpecialiteId)}>
+                <option value="">Non définie</option>
+                {specialites.map((s) => (
+                  <option key={s.id} value={s.id}>{s.nom}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="form-label">Cabinet</label>
+              <select className="form-input" value={cabinetId} disabled={sauvegarde}
+                onChange={(e) => handleChangeAffectation('cabinet_id', e.target.value, setCabinetId)}>
+                <option value="">Aucun</option>
+                {cabinets.map((c) => (
+                  <option key={c.id} value={c.id}>{c.nom}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div className="bg-neutral-bg rounded-xl p-3">
+            <p className="text-xs text-neutral-muted">Tarif</p>
+            <p className="text-sm font-semibold text-neutral-text mt-0.5">
+              {medecin.tarif ? `${medecin.tarif.toLocaleString('fr-FR')} FCFA` : '—'}
+            </p>
           </div>
 
           <div className="space-y-2">
@@ -251,6 +303,8 @@ function ModalDetailMedecin({ medecin, onClose, onUpdate }) {
 // ── Page principale ───────────────────────────────────────
 export function AdminMedecins() {
   const [medecins,      setMedecins]      = useState([])
+  const [specialites,   setSpecialites]   = useState([])
+  const [cabinets,      setCabinets]      = useState([])
   const [chargement,    setChargement]    = useState(true)
   const [erreur,        setErreur]        = useState(null)
   const [recherche,     setRecherche]     = useState('')
@@ -261,8 +315,12 @@ export function AdminMedecins() {
     setChargement(true)
     setErreur(null)
     try {
-      const data = await getMedecins()
-      setMedecins(data)
+      const [medecinsData, specialitesData, cabinetsData] = await Promise.all([
+        getMedecins(), getSpecialites(), getCabinets(),
+      ])
+      setMedecins(medecinsData)
+      setSpecialites(specialitesData)
+      setCabinets(cabinetsData)
     } catch (e) {
       setErreur('Impossible de charger les médecins.')
     } finally {
@@ -276,7 +334,7 @@ export function AdminMedecins() {
     const search = recherche.toLowerCase()
     return (
       `${m.prenom} ${m.nom}`.toLowerCase().includes(search) ||
-      m.specialite?.toLowerCase().includes(search) ||
+      m.specialiteNom?.toLowerCase().includes(search) ||
       m.email?.toLowerCase().includes(search)
     )
   })
@@ -364,7 +422,7 @@ export function AdminMedecins() {
                   </span>
                 </div>
                 <div className="flex items-center gap-3 mt-0.5 flex-wrap">
-                  <span className="badge-primary text-2xs">{medecin.specialite || '—'}</span>
+                  <span className="badge-primary text-2xs">{medecin.specialiteNom || '—'}</span>
                   {medecin.telephone && (
                     <span className="text-xs text-neutral-muted flex items-center gap-1">
                       <Phone className="w-3 h-3" /> {medecin.telephone}
@@ -388,6 +446,8 @@ export function AdminMedecins() {
 
       {modalNouveau && (
         <ModalNouveauMedecin
+          specialites={specialites}
+          cabinets={cabinets}
           onClose={() => setModalNouveau(false)}
           onSave={charger}
         />
@@ -396,6 +456,8 @@ export function AdminMedecins() {
       {medecinSelec && (
         <ModalDetailMedecin
           medecin={medecinSelec}
+          specialites={specialites}
+          cabinets={cabinets}
           onClose={() => setMedecinSelec(null)}
           onUpdate={charger}
         />

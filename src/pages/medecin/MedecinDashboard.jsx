@@ -79,7 +79,7 @@ export function MedecinDashboard() {
   const rdvsTermines = rdvs.filter((r) => r.statut === 'termine').length
 
   const prochainsRdvs = rdvsAujourdhui
-    .filter((r) => !['termine', 'annule'].includes(r.statut))
+    .filter((r) => !['termine', 'annule', 'absent'].includes(r.statut))
     .sort((a, b) => (a.heure || '').localeCompare(b.heure || ''))
     .slice(0, 5)
 
@@ -109,9 +109,9 @@ export function MedecinDashboard() {
             {format(new Date(), 'EEEE dd MMMM yyyy', { locale: fr })}
           </p>
         </div>
-        {user?.specialite && (
+        {(user?.specialiteNom || user?.specialite) && (
           <span className="badge-primary text-sm px-3 py-1.5">
-            {user.specialite}
+            {user.specialiteNom || user.specialite}
           </span>
         )}
       </div>

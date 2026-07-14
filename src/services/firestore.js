@@ -33,6 +33,14 @@ const mapPatient = (row) =>
     numeroDossier: row.numero_dossier,
     allergies: row.allergies || [],
     antecedents: row.antecedents || [],
+    vaccins: row.vaccins || [],
+    maladiesChroniques: row.maladies_chroniques || [],
+    traitementsHabituels: row.traitements_habituels || [],
+    habitudesVie: row.habitudes_vie || {},
+    donneesEnAttente: row.donnees_en_attente || null,
+    statutDossier: row.statut_dossier,
+    validePar: row.valide_par,
+    valideLe: row.valide_le,
     assurance: row.assurance,
     medecinReferentId: row.medecin_referent_id,
     medecinReferentNom: row.medecin_referent_nom,
@@ -47,7 +55,10 @@ const patientToRow = (data) => {
     prenom: 'prenom', nom: 'nom', dateNaissance: 'date_naissance', sexe: 'sexe',
     groupeSanguin: 'groupe_sanguin', telephone: 'telephone', email: 'email',
     adresse: 'adresse', numeroDossier: 'numero_dossier', allergies: 'allergies',
-    antecedents: 'antecedents', assurance: 'assurance',
+    antecedents: 'antecedents', vaccins: 'vaccins', assurance: 'assurance',
+    maladiesChroniques: 'maladies_chroniques', traitementsHabituels: 'traitements_habituels',
+    habitudesVie: 'habitudes_vie', donneesEnAttente: 'donnees_en_attente',
+    statutDossier: 'statut_dossier', validePar: 'valide_par', valideLe: 'valide_le',
     medecinReferentId: 'medecin_referent_id', medecinReferentNom: 'medecin_referent_nom',
     source: 'source',
   }
@@ -100,6 +111,7 @@ const mapConsultation = (row) =>
     id: row.id,
     patientId: row.patient_id,
     patientNom: row.patient_nom,
+    patientAge: row.patient_age,
     medecinId: row.medecin_id,
     medecinNom: row.medecin_nom,
     date: row.date,
@@ -108,6 +120,7 @@ const mapConsultation = (row) =>
     diagnostic: row.diagnostic,
     planTraitement: row.plan_traitement,
     ordonnances: row.ordonnances || [],
+    constantes: row.constantes || {},
     statut: row.statut,
     dateCreation: row.date_creation,
     dateMiseAJour: row.date_mise_a_jour,
@@ -116,10 +129,12 @@ const mapConsultation = (row) =>
 const consultationToRow = (data) => {
   const row = {}
   const map = {
-    patientId: 'patient_id', patientNom: 'patient_nom', medecinId: 'medecin_id',
+    patientId: 'patient_id', patientNom: 'patient_nom', patientAge: 'patient_age',
+    medecinId: 'medecin_id',
     medecinNom: 'medecin_nom', date: 'date', motif: 'motif',
     examenClinique: 'examen_clinique', diagnostic: 'diagnostic',
-    planTraitement: 'plan_traitement', ordonnances: 'ordonnances', statut: 'statut',
+    planTraitement: 'plan_traitement', ordonnances: 'ordonnances',
+    constantes: 'constantes', statut: 'statut',
   }
   Object.entries(map).forEach(([js, col]) => {
     if (data[js] !== undefined) row[col] = data[js]
@@ -601,13 +616,13 @@ export const creerOuOuvrirConversation = async (user1Id, user2Id) => {
 // ══════════════════════════════════════════════════════════
 
 export const getUtilisateurs = async () => {
-  const { data, error } = await supabase.from('utilisateurs').select('*')
+  const { data, error } = await supabase.from('utilisateurs').select('*, specialites(nom), cabinets(nom)')
   if (error) throw error
   return data.map(mapUtilisateur)
 }
 
 export const getUtilisateurById = async (id) => {
-  const { data, error } = await supabase.from('utilisateurs').select('*').eq('id', id).maybeSingle()
+  const { data, error } = await supabase.from('utilisateurs').select('*, specialites(nom), cabinets(nom)').eq('id', id).maybeSingle()
   if (error) throw error
   return mapUtilisateur(data)
 }
@@ -736,4 +751,311 @@ export const updateClinique = async (data) => {
   const { error } = await supabase.from('clinique').update(payload).eq('id', 1)
   if (error) throw error
   return getClinique()
+}
+// ══════════════════════════════════════════════════════════
+// SPÉCIALITÉS
+// ══════════════════════════════════════════════════════════
+
+const mapSpecialite = (row) =>
+  row && {
+    id: row.id,
+    nom: row.nom,
+    description: row.description,
+    actif: row.actif,
+    ordre: row.ordre,
+    dateCreation: row.date_creation,
+  }
+
+export const getSpecialites = async () => {
+  const { data, error } = await supabase
+    .from('specialites')
+    .select('*')
+    .order('ordre', { ascending: true })
+  if (error) throw error
+  return data.map(mapSpecialite)
+}
+
+export const createSpecialite = async (data) => {
+  const { data: inserted, error } = await supabase
+    .from('specialites')
+    .insert({
+      nom: data.nom,
+      description: data.description || '',
+      actif: data.actif ?? true,
+      ordre: data.ordre ?? 0,
+    })
+    .select('id')
+    .single()
+  if (error) throw error
+  return inserted.id
+}
+
+export const updateSpecialite = async (id, data) => {
+  const payload = {}
+  ;['nom', 'description', 'actif', 'ordre'].forEach((champ) => {
+    if (data[champ] !== undefined) payload[champ] = data[champ]
+  })
+  const { error } = await supabase.from('specialites').update(payload).eq('id', id)
+  if (error) throw error
+}
+
+export const deleteSpecialite = async (id) => {
+  const { error } = await supabase.from('specialites').delete().eq('id', id)
+  if (error) throw error
+}
+
+// ══════════════════════════════════════════════════════════
+// CABINETS
+// ══════════════════════════════════════════════════════════
+
+const mapCabinet = (row) =>
+  row && {
+    id: row.id,
+    nom: row.nom,
+    description: row.description,
+    actif: row.actif,
+    dateCreation: row.date_creation,
+  }
+
+export const getCabinets = async () => {
+  const { data, error } = await supabase
+    .from('cabinets')
+    .select('*')
+    .order('nom', { ascending: true })
+  if (error) throw error
+  return data.map(mapCabinet)
+}
+
+export const createCabinet = async (data) => {
+  const { data: inserted, error } = await supabase
+    .from('cabinets')
+    .insert({
+      nom: data.nom,
+      description: data.description || '',
+      actif: data.actif ?? true,
+    })
+    .select('id')
+    .single()
+  if (error) throw error
+  return inserted.id
+}
+
+export const updateCabinet = async (id, data) => {
+  const payload = {}
+  ;['nom', 'description', 'actif'].forEach((champ) => {
+    if (data[champ] !== undefined) payload[champ] = data[champ]
+  })
+  const { error } = await supabase.from('cabinets').update(payload).eq('id', id)
+  if (error) throw error
+}
+
+export const deleteCabinet = async (id) => {
+  const { error } = await supabase.from('cabinets').delete().eq('id', id)
+  if (error) throw error
+}
+
+// ══════════════════════════════════════════════════════════
+// PERMISSIONS PAR RÔLE
+// ══════════════════════════════════════════════════════════
+
+export const getRolePermissions = async () => {
+  const { data, error } = await supabase
+    .from('role_permissions')
+    .select('*')
+    .order('role', { ascending: true })
+  if (error) throw error
+  return data.map((row) => ({
+    id: row.id,
+    role: row.role,
+    action: row.action,
+    autorise: row.autorise,
+  }))
+}
+
+export const updateRolePermission = async (id, autorise) => {
+  const { error } = await supabase.from('role_permissions').update({ autorise }).eq('id', id)
+  if (error) throw error
+}
+
+// ══════════════════════════════════════════════════════════
+// EXAMENS
+// ══════════════════════════════════════════════════════════
+
+const mapExamen = (row) =>
+  row && {
+    id: row.id,
+    patientId: row.patient_id,
+    patientNom: row.patient_nom,
+    medecinId: row.medecin_id,
+    medecinNom: row.medecin_nom,
+    consultationId: row.consultation_id,
+    type: row.type,
+    designation: row.designation,
+    instructions: row.instructions,
+    statut: row.statut,
+    resultat: row.resultat,
+    commentaireMedecin: row.commentaire_medecin,
+    datePrescription: row.date_prescription,
+    dateResultat: row.date_resultat,
+  }
+
+export const getExamensByPatient = async (patientId) => {
+  const { data, error } = await supabase
+    .from('examens')
+    .select('*')
+    .eq('patient_id', patientId)
+  if (error) throw error
+  return data
+    .map(mapExamen)
+    .sort((a, b) => new Date(b.datePrescription) - new Date(a.datePrescription))
+}
+
+export const getExamensByMedecin = async (medecinId) => {
+  const { data, error } = await supabase
+    .from('examens')
+    .select('*')
+    .eq('medecin_id', medecinId)
+  if (error) throw error
+  return data
+    .map(mapExamen)
+    .sort((a, b) => new Date(b.datePrescription) - new Date(a.datePrescription))
+}
+
+export const createExamen = async (data) => {
+  const { data: inserted, error } = await supabase
+    .from('examens')
+    .insert({
+      patient_id: data.patientId,
+      patient_nom: data.patientNom,
+      medecin_id: data.medecinId,
+      medecin_nom: data.medecinNom,
+      consultation_id: data.consultationId || null,
+      type: data.type || 'analyse',
+      designation: data.designation,
+      instructions: data.instructions || '',
+    })
+    .select('id')
+    .single()
+  if (error) throw error
+  return inserted.id
+}
+
+export const updateExamen = async (id, data) => {
+  const payload = {}
+  if (data.resultat !== undefined) payload.resultat = data.resultat
+  if (data.commentaireMedecin !== undefined) payload.commentaire_medecin = data.commentaireMedecin
+  if (data.statut !== undefined) {
+    payload.statut = data.statut
+    if (data.statut === 'resultat_disponible') payload.date_resultat = new Date().toISOString()
+  }
+  const { error } = await supabase.from('examens').update(payload).eq('id', id)
+  if (error) throw error
+}
+
+// ══════════════════════════════════════════════════════════
+// DOCUMENTS (certificats, comptes rendus)
+// ══════════════════════════════════════════════════════════
+
+const mapDocument = (row) =>
+  row && {
+    id: row.id,
+    patientId: row.patient_id,
+    patientNom: row.patient_nom,
+    medecinId: row.medecin_id,
+    medecinNom: row.medecin_nom,
+    consultationId: row.consultation_id,
+    type: row.type,
+    titre: row.titre,
+    contenu: row.contenu,
+    signePar: row.signe_par,
+    dateSignature: row.date_signature,
+    dateCreation: row.date_creation,
+  }
+
+export const getDocumentsByPatient = async (patientId) => {
+  const { data, error } = await supabase
+    .from('documents')
+    .select('*')
+    .eq('patient_id', patientId)
+  if (error) throw error
+  return data
+    .map(mapDocument)
+    .sort((a, b) => new Date(b.dateCreation) - new Date(a.dateCreation))
+}
+
+export const getDocumentsByMedecin = async (medecinId) => {
+  const { data, error } = await supabase
+    .from('documents')
+    .select('*')
+    .eq('medecin_id', medecinId)
+  if (error) throw error
+  return data
+    .map(mapDocument)
+    .sort((a, b) => new Date(b.dateCreation) - new Date(a.dateCreation))
+}
+
+export const createDocument = async (data) => {
+  const { data: inserted, error } = await supabase
+    .from('documents')
+    .insert({
+      patient_id: data.patientId,
+      patient_nom: data.patientNom,
+      medecin_id: data.medecinId,
+      medecin_nom: data.medecinNom,
+      consultation_id: data.consultationId || null,
+      type: data.type || 'certificat',
+      titre: data.titre,
+      contenu: data.contenu,
+      signe_par: data.signePar || null,
+      date_signature: data.signePar ? new Date().toISOString() : null,
+    })
+    .select('id')
+    .single()
+  if (error) throw error
+  return inserted.id
+}
+
+export const deleteDocument = async (id) => {
+  const { error } = await supabase.from('documents').delete().eq('id', id)
+  if (error) throw error
+}
+
+// ══════════════════════════════════════════════════════════
+// VALIDATION DES DONNÉES PATIENT (par le médecin référent)
+// ══════════════════════════════════════════════════════════
+
+// Le patient propose des modifications (infos admin/perso + questionnaire
+// santé) : rien n'est appliqué au dossier officiel avant validation.
+export const proposerModificationsPatient = async (patientId, champs) => {
+  const { error } = await supabase
+    .from('patients')
+    .update({
+      donnees_en_attente: { champs, proposeLe: new Date().toISOString() },
+      statut_dossier: 'en_attente_validation',
+    })
+    .eq('id', patientId)
+  if (error) throw error
+}
+
+// Le médecin référent valide (ou corrige puis valide) les propositions :
+// elles sont fusionnées dans le dossier officiel.
+export const validerModificationsPatient = async (patientId, champsValides, medecinId) => {
+  const payload = {
+    ...patientToRow(champsValides),
+    donnees_en_attente: null,
+    statut_dossier: 'valide',
+    valide_par: medecinId,
+    valide_le: new Date().toISOString(),
+  }
+  const { error } = await supabase.from('patients').update(payload).eq('id', patientId)
+  if (error) throw error
+}
+
+// Le médecin référent rejette les propositions sans les appliquer.
+export const rejeterModificationsPatient = async (patientId) => {
+  const { error } = await supabase
+    .from('patients')
+    .update({ donnees_en_attente: null, statut_dossier: 'valide' })
+    .eq('id', patientId)
+  if (error) throw error
 }

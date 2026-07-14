@@ -12,6 +12,7 @@ const STATUTS = {
   en_attente:       { label: 'En attente',       classe: 'badge-neutral'  },
   confirme:         { label: 'Confirmé',          classe: 'badge-info'     },
   arrive:           { label: 'Arrivé',            classe: 'badge-warning'  },
+  absent:           { label: 'Absent',            classe: 'badge-danger'   },
   en_consultation:  { label: 'En consultation',   classe: 'badge-accent'   },
   termine:          { label: 'Terminé',           classe: 'badge-success'  },
   annule:           { label: 'Annulé',            classe: 'badge-danger'   },
@@ -119,6 +120,17 @@ function CarteRdv({ rdv, onAction, actionEnCours }) {
                 Annuler
               </button>
             )}
+            {['en_attente', 'confirme', 'arrive'].includes(rdv.statut) && (
+              <button
+                onClick={() => onAction(rdv.id, 'absent')}
+                disabled={enCours}
+                className="btn-sm btn-ghost text-warning hover:bg-warning-50
+                           flex items-center gap-1.5 justify-center"
+              >
+                <AlertCircle className="w-3.5 h-3.5" />
+                Marquer absent
+              </button>
+            )}
           </div>
         )}
 
@@ -173,6 +185,7 @@ export function SecretaireAccueil() {
   const enAttente    = rdvs.filter((r) => ['en_attente', 'confirme'].includes(r.statut)).length
   const enConsult    = rdvs.filter((r) => r.statut === 'en_consultation').length
   const termines     = rdvs.filter((r) => r.statut === 'termine').length
+  const absents      = rdvs.filter((r) => r.statut === 'absent').length
   const annules      = rdvs.filter((r) => r.statut === 'annule').length
 
   // Filtrage
@@ -181,6 +194,7 @@ export function SecretaireAccueil() {
     if (filtre === 'attente')         return ['en_attente', 'confirme', 'arrive'].includes(r.statut)
     if (filtre === 'en_consultation') return r.statut === 'en_consultation'
     if (filtre === 'termine')         return r.statut === 'termine'
+    if (filtre === 'absent')          return r.statut === 'absent'
     if (filtre === 'annule')          return r.statut === 'annule'
     return true
   })
@@ -242,6 +256,7 @@ export function SecretaireAccueil() {
           { id: 'attente',         label: `En attente (${enAttente})` },
           { id: 'en_consultation', label: `En consult. (${enConsult})` },
           { id: 'termine',         label: `Terminés (${termines})`   },
+          { id: 'absent',          label: `Absents (${absents})`     },
           { id: 'annule',          label: `Annulés (${annules})`     },
         ].map(({ id, label }) => (
           <button

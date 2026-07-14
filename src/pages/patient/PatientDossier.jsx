@@ -1,11 +1,15 @@
 import { useState, useEffect } from 'react'
 import {
   FileText, AlertCircle, Stethoscope,
-  User, Activity, Shield,
+  User, Activity, Shield, Syringe, FlaskConical, Clock, CheckCircle2,
+  FileSignature, Download, FileDown,
 } from 'lucide-react'
 import {
-  getPatientById, getConsultationsByPatient,
+  getPatientById, getConsultationsByPatient, getExamensByPatient, getDocumentsByPatient,
 } from '../../services/firestore'
+import { useClinicStore } from '../../store/clinicStore'
+import { genererDocumentPdf } from '../../utils/genererDocumentPdf'
+import { genererDossierCompletPdf } from '../../utils/genererDossierCompletPdf'
 import { useAuthStore } from '../../store/authStore'
 import { format } from 'date-fns'
 import { fr } from 'date-fns/locale'
@@ -18,8 +22,11 @@ function toDate(val) {
 
 export function PatientDossier() {
   const { user }        = useAuthStore()
+  const { data: clinique } = useClinicStore()
   const [patient,       setPatient]       = useState(null)
   const [consultations, setConsultations] = useState([])
+  const [examens,       setExamens]       = useState([])
+  const [documents,     setDocuments]     = useState([])
   const [chargement,    setChargement]    = useState(true)
   const [erreur,        setErreur]        = useState(null)
   const [onglet,        setOnglet]        = useState('infos')
@@ -30,12 +37,16 @@ export function PatientDossier() {
       setChargement(true)
       setErreur(null)
       try {
-        const [p, c] = await Promise.all([
+        const [p, c, ex, docs] = await Promise.all([
           getPatientById(user.uid),
           getConsultationsByPatient(user.uid),
+          getExamensByPatient(user.uid),
+          getDocumentsByPatient(user.uid),
         ])
         setPatient(p)
         setConsultations(c)
+        setExamens(ex)
+        setDocuments(docs)
       } catch (e) {
         setErreur('Impossible de charger votre dossier.')
       } finally {
@@ -76,9 +87,18 @@ export function PatientDossier() {
   return (
     <div className="space-y-6 animate-fade-in">
 
-      <div>
-        <h1 className="page-title">Mon dossier médical</h1>
-        <p className="page-subtitle">{patient.numeroDossier}</p>
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="page-title">Mon dossier médical</h1>
+          <p className="page-subtitle">{patient.numeroDossier}</p>
+        </div>
+        <button
+          onClick={() => genererDossierCompletPdf({ patient, consultations, examens, documents, clinique })}
+          className="btn-outline flex items-center gap-2"
+        >
+          <FileDown className="w-4 h-4" />
+          Télécharger le dossier complet
+        </button>
       </div>
 
       {erreur && (
@@ -117,6 +137,8 @@ export function PatientDossier() {
           { id: 'infos',        label: 'Informations',  icon: User        },
           { id: 'antecedents',  label: 'Antécédents',   icon: Activity    },
           { id: 'consultations',label: 'Consultations', icon: Stethoscope },
+          { id: 'examens',      label: 'Examens',       icon: FlaskConical },
+          { id: 'documents',    label: 'Documents',     icon: FileSignature },
         ].map(({ id, label, icon: Icon }) => (
           <button
             key={id}
@@ -190,7 +212,26 @@ export function PatientDossier() {
             </div>
           )}
 
-          {!patient.allergies?.length && !patient.antecedents?.length && (
+          {patient.vaccins?.length > 0 && (
+            <div className="card">
+              <h2 className="section-title mb-3 flex items-center gap-2">
+                <Syringe className="w-4 h-4 text-info" />
+                Vaccins
+              </h2>
+              <div className="space-y-2">
+                {patient.vaccins.map((v, i) => (
+                  <div key={i} className="flex items-center justify-between p-3 bg-neutral-bg rounded-xl">
+                    <p className="text-sm text-neutral-text">{v.nom}</p>
+                    <p className="text-xs text-neutral-muted">
+                      {v.date ? format(toDate(v.date), 'dd MMMM yyyy', { locale: fr }) : '—'}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {!patient.allergies?.length && !patient.antecedents?.length && !patient.vaccins?.length && (
             <div className="empty-state">
               <Activity className="w-10 h-10 mb-2 opacity-20" />
               <p className="text-sm">Aucun antécédent enregistré</p>
@@ -234,7 +275,97 @@ export function PatientDossier() {
                       <p className="text-sm text-neutral-text">{c.planTraitement}</p>
                     </div>
                   )}
+                  {c.constantes && Object.values(c.constantes).some(Boolean) && (
+                    <div>
+                      <p className="text-xs text-neutral-muted mb-1">Constantes</p>
+                      <div className="flex flex-wrap gap-2">
+                        {c.constantes.poids && <span className="badge-neutral">Poids : {c.constantes.poids} kg</span>}
+                        {c.constantes.taille && <span className="badge-neutral">Taille : {c.constantes.taille} cm</span>}
+                        {c.constantes.tension && <span className="badge-neutral">Tension : {c.constantes.tension}</span>}
+                        {c.constantes.temperature && <span className="badge-neutral">Temp. : {c.constantes.temperature} °C</span>}
+                        {c.constantes.pouls && <span className="badge-neutral">Pouls : {c.constantes.pouls} bpm</span>}
+                      </div>
+                    </div>
+                  )}
                 </div>
+              </div>
+            ))
+          )}
+        </div>
+      )}
+      {onglet === 'examens' && (
+        <div className="space-y-3">
+          {examens.length === 0 ? (
+            <div className="empty-state">
+              <FlaskConical className="w-10 h-10 mb-2 opacity-20" />
+              <p className="text-sm">Aucun examen prescrit</p>
+            </div>
+          ) : (
+            examens.map((ex) => (
+              <div key={ex.id} className="card space-y-2">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div>
+                    <p className="font-semibold text-neutral-text">{ex.designation}</p>
+                    <p className="text-xs text-neutral-muted">
+                      {ex.medecinNom} · {ex.datePrescription
+                        ? format(toDate(ex.datePrescription), 'dd MMMM yyyy', { locale: fr })
+                        : '—'}
+                    </p>
+                  </div>
+                  {ex.statut === 'resultat_disponible' ? (
+                    <span className="badge-success flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> Résultat disponible
+                    </span>
+                  ) : (
+                    <span className="badge-neutral flex items-center gap-1">
+                      <Clock className="w-3.5 h-3.5" /> En attente
+                    </span>
+                  )}
+                </div>
+                {ex.resultat && (
+                  <div>
+                    <p className="text-xs text-neutral-muted">Résultat</p>
+                    <p className="text-sm text-neutral-text whitespace-pre-line">{ex.resultat}</p>
+                  </div>
+                )}
+                {ex.commentaireMedecin && (
+                  <div>
+                    <p className="text-xs text-neutral-muted">Commentaire du médecin</p>
+                    <p className="text-sm text-neutral-text whitespace-pre-line">{ex.commentaireMedecin}</p>
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      )}
+      {onglet === 'documents' && (
+        <div className="space-y-2">
+          {documents.length === 0 ? (
+            <div className="empty-state">
+              <FileSignature className="w-10 h-10 mb-2 opacity-20" />
+              <p className="text-sm">Aucun document disponible</p>
+            </div>
+          ) : (
+            documents.map((d) => (
+              <div key={d.id} className="card flex items-center gap-4">
+                <div className="w-10 h-10 rounded-xl bg-primary-50 flex items-center justify-center flex-shrink-0">
+                  <FileText className="w-5 h-5 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-neutral-text">{d.titre}</p>
+                  <p className="text-xs text-neutral-muted">
+                    {d.medecinNom} · {d.dateCreation
+                      ? format(toDate(d.dateCreation), 'dd MMMM yyyy', { locale: fr })
+                      : '—'}
+                  </p>
+                </div>
+                <button
+                  onClick={() => genererDocumentPdf(d, clinique)}
+                  className="btn-icon"
+                >
+                  <Download className="w-4 h-4" />
+                </button>
               </div>
             ))
           )}
